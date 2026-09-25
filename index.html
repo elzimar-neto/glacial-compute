@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>GLACIAL COMPUTE: RUM MAAMUTE</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin:0; min-height:100%; }
+  body {
+    background: linear-gradient(to bottom, #bfe3f0 0%, #eaf6ff 60%, #ffffff 100%);
+    display:flex; flex-direction:column; align-items:center;
+    font-family: 'Trebuchet MS', sans-serif;
+  }
+  header { width:100%; background:#134611; color:white; text-align:center; padding:14px 0 10px; box-shadow:0 3px 6px rgba(0,0,0,.3); }
+  header h1 { margin:0; font-size:24px; letter-spacing:1px; }
+  header h1 .glacial { color:#8bc34a; }
+  header h1 .rum { color:#f0c419; }
+  header p.subtitulo { margin:4px 0 0; font-size:12px; color:#cfe6c9; letter-spacing:2px; }
+
+  #colunaJogo { width:95vw; max-width:1400px; display:flex; flex-direction:column; align-items:center; margin-top:8px; }
+  #hud { display:flex; justify-content:space-between; width:100%; font-size:20px; color:#134611; font-weight:bold; }
+  #canvasWrap { position:relative; width:100%; height:72vh; margin-top:6px; }
+  canvas {
+    background: transparent; border:5px solid #134611; border-radius:16px;
+    width:100%; height:100%; display:block; box-shadow:0 6px 15px rgba(0,0,0,.25);
+    transition: transform 0.05s;
+  }
+  canvas.shake { animation: shakeAnim 0.5s; }
+  @keyframes shakeAnim {
+    0% { transform: translate(0,0); }
+    10% { transform: translate(-10px,-6px) rotate(-1deg); }
+    20% { transform: translate(10px,6px) rotate(1deg); }
+    30% { transform: translate(-8px,4px) rotate(-1deg); }
+    40% { transform: translate(8px,-4px) rotate(1deg); }
+    50% { transform: translate(-6px,6px); }
+    60% { transform: translate(6px,-6px); }
+    70% { transform: translate(-4px,2px); }
+    80% { transform: translate(4px,-2px); }
+    100% { transform: translate(0,0); }
+  }
+  #flashChoque {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:rgba(255,0,0,0.25); pointer-events:none; opacity:0; border-radius:16px;
+  }
+  #flashChoque.ativo { animation: flashAnim 1s; }
+  @keyframes flashAnim { 0%{opacity:1;} 100%{opacity:0;} }
+
+  #rankingOverlay {
+    position:absolute; top:12px; right:12px; width:190px;
+    background:rgba(255,255,255,0.55); border:2px solid rgba(19,70,17,0.6);
+    border-radius:12px; padding:8px; backdrop-filter: blur(2px);
+    pointer-events:none;
+  }
+  #rankingOverlay h3 { margin:0 0 6px; color:#134611; text-align:center; font-size:14px; }
+  #rankingOverlay .item { display:flex; justify-content:space-between; color:#134611; font-size:12px; padding:2px 0; }
+
+  #dica { color:#134611; font-size:14px; margin-top:4px; }
+
+  footer {
+    width:100%; background:#134611; color:#cfe6c9; text-align:center;
+    font-size:13px; padding:12px 0; margin-top:16px;
+  }
+  footer strong { color:#8bc34a; }
+
+  #feedback {
+    display:none; position:fixed; top:20%; left:50%; transform:translate(-50%,-50%);
+    font-size:34px; font-weight:bold; padding:14px 26px; border-radius:14px;
+    z-index:20; box-shadow:0 6px 14px rgba(0,0,0,.3);
+  }
+  #feedback.certo { background:#c8e6c9; color:#1b5e20; }
+  #feedback.errado { background:#ffcdd2; color:#b71c1c; }
+  #quiz, #rankingBox {
+    display:none; position:fixed; top:35%; left:50%; transform:translate(-50%,-50%);
+    background:white; border:4px solid #134611; padding:25px 35px; border-radius:16px;
+    text-align:center; box-shadow:0 8px 20px rgba(0,0,0,.4); z-index:10; max-width:90vw;
+  }
+  #quiz p, #rankingBox p { font-size:22px; color:#134611; margin-bottom:15px; }
+  #quiz button, #rankingBox button {
+    margin:6px; padding:10px 18px; font-size:18px; cursor:pointer;
+    border:none; border-radius:8px; background:#134611; color:white; transition:.2s;
+  }
+  #quiz button:hover, #rankingBox button:hover { background:#c0392b; }
+  #rankingBox input { font-size:18px; padding:6px; border-radius:6px; border:2px solid #134611; }
+  #listaRanking { text-align:left; max-height:220px; overflow-y:auto; margin:10px 0; }
+  #listaRanking div { border-bottom:1px solid #ccc; padding:4px 0; color:#134611; font-size:14px; }
+
+  #timerBarra {
+    width: 100%; height: 10px; background:#e0e0e0; border-radius:6px;
+    margin-top:10px; overflow:hidden;
+  }
+  #timerPreenchimento {
+    height:100%; background:#2e7d32; width:100%; transition: width 0.1s linear;
+  }
+  #timerPreenchimento.urgente { background:#c0392b; }
+  #timerTexto { color:#134611; font-size:16px; margin-top:4px; font-weight:bold; }
+
+  #statusFirebase {
+    font-size:12px; margin-top:4px; font-weight:bold;
+  }
+  #statusFirebase.ok { color:#1b5e20; }
+  #statusFirebase.erro { color:#b71c1c; }
+  #statusFirebase.carregando { color:#134611; opacity:0.7; }
+
+  #mensagemSalvar {
+    font-size:14px; margin-top:6px; min-height:18px; font-weight:bold;
+  }
+  #mensagemSalvar.ok { color:#1b5e20; }
+  #mensagemSalvar.erro { color:#b71c1c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🦣 <span class="glacial">GLACIAL COMPUTE</span>: <span class="rum">RUM MAAMUTE</span></h1>
+  <p class="subtitulo">CORRIDA ÁRTICA • DESAFIOS DE LÓGICA</p>
+</header>
+
+<div id="colunaJogo">
+  <div id="hud">
+    <div>Pontos: <span id="score">0</span></div>
+    <div>Nível: <span id="nivelTxt">1</span></div>
+    <div id="vidas">❤️❤️❤️</div>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="game"></canvas>
+    <div id="flashChoque"></div>
+    <div id="rankingOverlay">
+      <h3>🏆 Top 3</h3>
+      <div id="top3">Carregando...</div>
+    </div>
+  </div>
+  <div id="dica">Clique, toque na tela ou aperte ESPAÇO para pular!</div>
+  <div id="statusFirebase" class="carregando">Conectando ao ranking online...</div>
+</div>
+
+<div id="feedback"></div>
+
+<div id="quiz">
+  <p id="pergunta"></p>
+  <div id="opcoes"></div>
+  <div id="timerBarra"><div id="timerPreenchimento"></div></div>
+  <div id="timerTexto">3.0s</div>
+</div>
+
+<div id="rankingBox">
+  <p id="tituloRanking">Fim de jogo!</p>
+  <p>Pontuação: <span id="pontosFinal"></span></p>
+  <input id="nomeJogador" placeholder="Digite seu nome" maxlength="15">
+  <br>
+  <button id="btnSalvar" onclick="salvarRanking()">💾 Salvar no Ranking</button>
+  <div id="mensagemSalvar"></div>
+  <div id="listaRanking">Carregando ranking...</div>
+  <button onclick="baixarTxt()">⬇️ Baixar Ranking (.txt)</button>
+  <button onclick="location.reload()">🔄 Jogar de novo</button>
+</div>
+
+<footer>
+  Desenvolvido por <strong>Grupo MAAMUTE</strong>. © Copyright 2026, All Rights Reserved.
+</footer>
+
+<!-- Firebase SDK (compat, via CDN) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+<script>
+// ---------- Configuração do Firebase ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyCEQTpzU_jdse_qfjhjyoh2iXQidrANPaI",
+  authDomain: "glacial-compute-rum-maamute.firebaseapp.com",
+  databaseURL: "https://glacial-compute-rum-maamute-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "glacial-compute-rum-maamute",
+  storageBucket: "glacial-compute-rum-maamute.firebasestorage.app",
+  messagingSenderId: "753923864067",
+  appId: "1:753923864067:web:dc2db44526c9a432c80036",
+  measurementId: "G-S68JNCJL3T"
+};
+
+let db, rankingRef;
+const statusEl = document.getElementById("statusFirebase");
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+  rankingRef = db.ref("ranking_maamute");
+
+  const conexaoRef = db.ref(".info/connected");
+  conexaoRef.on("value", (snap) => {
+    if (snap.val() === true) {
+      statusEl.textContent = "🔥 Ranking online conectado";
+      statusEl.className = "ok";
+    } else {
+      statusEl.textContent = "⚠️ Sem conexão com o servidor do ranking";
+      statusEl.className = "erro";
+    }
+  });
+} catch (erro) {
+  console.error("Erro ao inicializar o Firebase:", erro);
+  statusEl.textContent = "❌ Erro ao conectar ao Firebase (veja o console)";
+  statusEl.className = "erro";
+}
+</script>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const vidasEl = document.getElementById("vidas");
+const quizEl = document.getElementById("quiz");
+const perguntaEl = document.getElementById("pergunta");
+const opcoesEl = document.getElementById("opcoes");
+const rankingBox = document.getElementById("rankingBox");
+const feedbackEl = document.getElementById("feedback");
+const flashChoque = document.getElementById("flashChoque");
+const mensagemSalvarEl = document.getElementById("mensagemSalvar");
+const btnSalvar = document.getElementById("btnSalvar");
+
+let chao = 0;
+let mamute = { x:60, y:0, w:90, h:90, vy:0, jumping:false, teveColisaoNoPulo:false, pernaFase:0 };
+let gravidade = 0.55;
+let forcaPulo = -14;
+let obstaculos = [];
+let coracoes = [];
+let velocidade = 5;
+const velocidadeMax = 10;
+let pontos = 0;
+let vidas = 3;
+const vidasMax = 3;
+let frame = 0;
+let pausado = false;
+let gameOver = false;
+let pulosBemSucedidos = 0;
+let jaSalvouRanking = false;
+
+let montanhas = [];
+let arvores = [];
+let frameProxArvore = 0;
+let animaisFundo = [];
+
+function inicializarCenario() {
+  montanhas = [];
+  for (let i=0;i<6;i++) montanhas.push({ x: i*320, altura: 90+Math.random()*70 });
+  arvores = [];
+  agendarProximaArvore();
+  animaisFundo = [
+    { tipo:"passaro", x:100, y:40, dir:1, vel:1.1 },
+    { tipo:"passaro", x:350, y:65, dir:1, vel:0.8 },
+    { tipo:"passaro", x:600, y:45, dir:-1, vel:0.9 },
+    { tipo:"raposa", x:800, y:0, vel:0 }
+  ];
+}
+
+function agendarProximaArvore() {
+  frameProxArvore = frame + 50 + Math.random() * 150;
+}
+
+function criarArvore() {
+  const juntas = Math.random() < 0.5;
+  const qtd = juntas ? (2 + Math.floor(Math.random()*2)) : 1;
+  const baseX = canvas.width + Math.random()*100;
+  for (let i=0; i<qtd; i++) {
+    arvores.push({
+      x: baseX + i*(22 + Math.random()*14),
+      escala: 0.5 + Math.random()*1.1
+    });
+  }
+}
+
+let audioCtx;
+function tocarSom(tipo) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    if (tipo === "choque") {
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+    } else if (tipo === "acerto") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (tipo === "erro") {
+      osc.type = "square";
+      osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+    } else if (tipo === "vida") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.25);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    }
+  } catch(e) {}
+}
+
+let nuvemX = 0;
+function desenharNuvensTexto() {
+  ctx.save();
+  ctx.font = "bold 40px 'Trebuchet MS', sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.shadowColor = "rgba(180,210,230,0.9)";
+  ctx.shadowBlur = 12;
+  const texto = "MAAMUTE";
+  let x = (canvas.width*0.15 - nuvemX) % (canvas.width + 400) - 400;
+  ctx.fillText(texto, x, 55);
+  ctx.fillText(texto, x + canvas.width + 400, 55);
+  ctx.restore();
+}
+
+function resize() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  chao = canvas.height - 60;
+  mamute.y = chao - mamute.h;
+}
+window.addEventListener("resize", resize);
+window.addEventListener("load", () => { resize(); inicializarCenario(); exibirTop3(); loop(); });
+
+function desenharMontanhas() {
+  ctx.fillStyle = "#cfe6f2";
+  montanhas.forEach(m => {
+    let bx = ((m.x - frame*0.3) % (canvas.width + 320)) - 160;
+    ctx.beginPath();
+    ctx.moveTo(bx, chao);
+    ctx.lineTo(bx+80, chao-m.altura);
+    ctx.lineTo(bx+160, chao);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.moveTo(bx+55, chao-m.altura*0.75);
+    ctx.lineTo(bx+80, chao-m.altura);
+    ctx.lineTo(bx+105, chao-m.altura*0.75);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#cfe6f2";
+  });
+}
+
+function desenharArvoreTundra(x, y, escala) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(escala, escala);
+  ctx.fillStyle = "#8a8a8a";
+  ctx.fillRect(-3, -14, 6, 14);
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.ellipse(0, -26, 15, 13, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-9, -19, 9, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(9, -19, 9, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(200,225,240,0.6)";
+  ctx.beginPath();
+  ctx.ellipse(3, -22, 8, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function desenharArvores() {
+  arvores.forEach(a => {
+    desenharArvoreTundra(a.x, chao, a.escala);
+  });
+}
+
+function atualizarArvores() {
+  const velArvores = 0.3 * (velocidade / 5);
+  arvores.forEach(a => a.x -= velArvores * 6);
+  arvores = arvores.filter(a => a.x + 60 > 0);
+  if (frame >= frameProxArvore) {
+    criarArvore();
+    agendarProximaArvore();
+  }
+}
+
+function desenharPassaro(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = "#555";
+  ctx.lineWidth = 2;
+  const bate = Math.sin(frame*0.25) * 5;
+  ctx.beginPath();
+  ctx.moveTo(-7, 0);
+  ctx.quadraticCurveTo(-3, -5-bate, 0, 0);
+  ctx.quadraticCurveTo(3, -5-bate, 7, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function desenharRaposa(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#e8912b";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(12, -4, 6, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.ellipse(-10, 2, 6, 4, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function desenharAnimaisFundo() {
+  animaisFundo.forEach(a => {
+    if (a.tipo === "passaro") {
+      a.x += a.vel * a.dir;
+      if (a.x > canvas.width+20 || a.x < -20) a.dir *= -1;
+      desenharPassaro(a.x, a.y);
+    } else if (a.tipo === "raposa") {
+      let rx = ((a.x - frame*(velocidade*0.6)) % (canvas.width + 300)) - 150;
+      desenharRaposa(rx, chao-8);
+    }
+  });
+}
+
+function desenharFundo() {
+  desenharMontanhas();
+  atualizarArvores();
+  desenharArvores();
+  nuvemX += 0.4;
+  desenharNuvensTexto();
+  desenharAnimaisFundo();
+  ctx.fillStyle = "#eef8fb";
+  ctx.fillRect(0, chao, canvas.width, canvas.height-chao);
+  ctx.strokeStyle = "#b9dcea";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, chao);
+  ctx.lineTo(canvas.width, chao);
+  ctx.stroke();
+}
+
+function desenharMamute() {
+  ctx.save();
+  ctx.translate(mamute.x, mamute.y);
+  const w = mamute.w, h = mamute.h;
+
+  if (!mamute.jumping) mamute.pernaFase += 0.25;
+  const balanco1 = Math.sin(mamute.pernaFase) * 8;
+  const balanco2 = Math.sin(mamute.pernaFase + Math.PI) * 8;
+
+  ctx.fillStyle = "#1f8a52";
+  ctx.beginPath();
+  ctx.ellipse(w*0.45, h*0.58, w*0.42, h*0.36, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = "#166b3e";
+  for (let i=0;i<4;i++) {
+    ctx.beginPath();
+    ctx.moveTo(w*0.15 + i*10, h*0.32);
+    ctx.lineTo(w*0.18 + i*10, h*0.15);
+    ctx.lineTo(w*0.22 + i*10, h*0.32);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#1f8a52";
+  ctx.beginPath();
+  ctx.ellipse(w*0.82, h*0.4, w*0.3, h*0.3, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = "#166b3e";
+  ctx.beginPath();
+  ctx.moveTo(w*0.62, h*0.2);
+  ctx.quadraticCurveTo(w*0.82, h*0.02, w*1.02, h*0.2);
+  ctx.quadraticCurveTo(w*0.82, h*0.12, w*0.62, h*0.2);
+  ctx.fill();
+
+  ctx.fillStyle = "white";
+  drawStar(w*0.78, h*0.32, 5, 6, 3);
+
+  ctx.strokeStyle = "#1f8a52";
+  ctx.lineWidth = 14;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(w*1.05, h*0.42);
+  ctx.quadraticCurveTo(w*1.15, h*0.65, w*0.98, h*0.78);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#f5f0e6";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(w*1.0, h*0.5);
+  ctx.quadraticCurveTo(w*1.3, h*0.55, w*1.15, h*0.85);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(w*0.95, h*0.55);
+  ctx.quadraticCurveTo(w*0.7, h*0.75, w*0.9, h*0.95);
+  ctx.stroke();
+
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(w*0.86, h*0.35, 6, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(w*0.87, h*0.35, 3, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = "#166b3e";
+  ctx.beginPath();
+  ctx.ellipse(w*0.62, h*0.4, w*0.09, h*0.13, 0.4, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = "#166b3e";
+  ctx.save();
+  ctx.translate(w*0.18+7, h*0.85);
+  ctx.rotate(balanco1*0.03);
+  ctx.fillRect(-7, 0, 14, 16);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(w*0.5+7, h*0.85);
+  ctx.rotate(balanco2*0.03);
+  ctx.fillRect(-7, 0, 14, 16);
+  ctx.restore();
+
+  ctx.fillStyle = "#f5f0e6";
+  ctx.fillRect(w*0.18 + balanco1*0.3, h*0.98, 14, 4);
+  ctx.fillRect(w*0.5 + balanco2*0.3, h*0.98, 14, 4);
+
+  ctx.restore();
+}
+
+function drawStar(cx, cy, spikes, outer, inner) {
+  let rot = Math.PI/2*3;
+  let x = cx, y = cy;
+  const step = Math.PI/spikes;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy-outer);
+  for (let i=0;i<spikes;i++) {
+    x = cx + Math.cos(rot)*outer; y = cy + Math.sin(rot)*outer;
+    ctx.lineTo(x,y); rot += step;
+    x = cx + Math.cos(rot)*inner; y = cy + Math.sin(rot)*inner;
+    ctx.lineTo(x,y); rot += step;
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function desenharObstaculo(o) {
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  if (o.tipo === "iceberg") {
+    ctx.fillStyle = "#a8d8ef"; ctx.strokeStyle = "#7fb8d6"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, o.h); ctx.lineTo(o.w*0.3, 0); ctx.lineTo(o.w*0.6, o.h*0.5); ctx.lineTo(o.w, o.h);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (o.tipo === "espinho") {
+    ctx.fillStyle = "#e3f2fa"; ctx.strokeStyle = "#8fc7de";
+    for (let i=0;i<3;i++) {
+      ctx.beginPath();
+      ctx.moveTo(i*(o.w/3), o.h); ctx.lineTo(i*(o.w/3)+o.w/6, 0); ctx.lineTo(i*(o.w/3)+o.w/3, o.h);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = "#90a4ae";
+    ctx.beginPath(); ctx.ellipse(o.w/2, o.h/2, o.w/2, o.h/2, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "white";
+    ctx.beginPath(); ctx.ellipse(o.w/2, o.h/3, o.w/2.3, o.h/4, 0, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function desenharCoracao(c) {
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.font = "34px serif";
+  ctx.fillText("❤️", 0, 30);
+  ctx.restore();
+}
+
+function pular() {
+  if (!mamute.jumping && !pausado) {
+    mamute.vy = forcaPulo;
+    mamute.jumping = true;
+    mamute.teveColisaoNoPulo = false;
+  }
+}
+document.addEventListener("keydown", e => { if (e.code === "Space") pular(); });
+canvas.addEventListener("click", pular);
+canvas.addEventListener("touchstart", e => { e.preventDefault(); pular(); });
+
+function nivelDificuldade() {
+  if (pontos < 100) return 0;
+  if (pontos < 250) return 1;
+  if (pontos < 450) return 2;
+  if (pontos < 700) return 3;
+  return 4;
+}
+
+function criarObstaculo() {
+  const nivel = nivelDificuldade();
+  const tipos = ["iceberg","espinho","pedra"];
+  const tipo = tipos[Math.floor(Math.random()*tipos.length)];
+
+  const alturaBase = 35 + Math.random()*25;
+  const alturaExtra = nivel * (6 + Math.random()*5);
+  const h = Math.min(90, alturaBase + alturaExtra);
+  const largura = 42 + nivel * 3;
+
+  obstaculos.push({ x: canvas.width, y: chao-h, w: largura, h, tipo });
+
+  if (nivel >= 2 && Math.random() < 0.35) {
+    const h2 = Math.min(85, 30 + Math.random()*20 + nivel*4);
+    const espaco = 90 - nivel*4;
+    obstaculos.push({
+      x: canvas.width + largura + espaco,
+      y: chao - h2,
+      w: largura,
+      h: h2,
+      tipo: tipos[Math.floor(Math.random()*tipos.length)]
+    });
+  }
+
+  if (nivel >= 3 && Math.random() < 0.15) {
+    const h3 = Math.min(80, 30 + Math.random()*18 + nivel*3);
+    obstaculos.push({
+      x: canvas.width + largura*2 + 170,
+      y: chao - h3,
+      w: largura,
+      h: h3,
+      tipo: tipos[Math.floor(Math.random()*tipos.length)]
+    });
+  }
+}
+
+function criarCoracao() {
+  if (vidas >= vidasMax) return;
+  coracoes.push({ x: canvas.width, y: chao - 90 - Math.random()*40, w:34, h:34 });
+}
+
+function bancoPerguntas() {
+  return [
+    { p:"Quanto é 5 + 7?", op:[12,10,14], r:12 },
+    { p:"Quanto é 9 x 2?", op:[16,18,20], r:18 },
+    { p:"Qual o dobro de 6?", op:[10,12,14], r:12 },
+    { p:"Quanto é 20 ÷ 4?", op:[4,5,6], r:5 },
+    { p:"Quanto é 3 x 3?", op:[6,9,12], r:9 },
+    { p:"Quanto é 15 - 8?", op:[6,7,8], r:7 },
+    { p:"Qual a raiz quadrada de 16?", op:[4,5,6], r:4 },
+    { p:"Qual a raiz quadrada de 25?", op:[4,5,6], r:5 },
+    { p:"Qual a raiz cúbica de 8?", op:[2,3,4], r:2 },
+    { p:"Qual a raiz quadrada de 49?", op:[6,7,8], r:7 },
+    { p:"Qual a raiz cúbica de 27?", op:[2,3,4], r:3 },
+    { p:"A soma dos ângulos internos de um triângulo é?", op:["90°","180°","360°"], r:"180°" },
+    { p:"Um ângulo reto mede quantos graus?", op:["45°","90°","180°"], r:"90°" },
+    { p:"A soma dos ângulos internos de um quadrado é?", op:["180°","270°","360°"], r:"360°" },
+    { p:"Dois ângulos que somam 90° são chamados de?", op:["Complementares","Suplementares","Opostos"], r:"Complementares" },
+    { p:"Dois ângulos que somam 180° são chamados de?", op:["Complementares","Suplementares","Retos"], r:"Suplementares" },
+  ];
+}
+
+let timerQuiz = null;
+let tempoRestanteQuiz = 3;
+const tempoTotalQuiz = 3;
+
+function mostrarQuiz() {
+  pausado = true;
+  const lista = bancoPerguntas();
+  const q = lista[Math.floor(Math.random()*lista.length)];
+  perguntaEl.textContent = q.p;
+  opcoesEl.innerHTML = "";
+
+  let respondido = false;
+
+  const timerPreenchimento = document.getElementById("timerPreenchimento");
+  const timerTexto = document.getElementById("timerTexto");
+  tempoRestanteQuiz = tempoTotalQuiz;
+  timerPreenchimento.style.width = "100%";
+  timerPreenchimento.classList.remove("urgente");
+  timerTexto.textContent = tempoTotalQuiz.toFixed(1) + "s";
+
+  function encerrarQuiz(resultado) {
+    if (respondido) return;
+    respondido = true;
+    clearInterval(timerQuiz);
+    quizEl.style.display = "none";
+
+    if (resultado === true) {
+      velocidade = Math.min(velocidadeMax, velocidade + 0.4);
+      pontos += 15;
+      mostrarFeedback(true);
+      tocarSom("acerto");
+    } else {
+      velocidade = Math.max(4, velocidade - 0.4);
+      mostrarFeedback(false, resultado === "tempo");
+      tocarSom("erro");
+      vidas--;
+      atualizarVidas();
+      if (vidas <= 0) { finalizarJogo(); return; }
+    }
+    pausado = false;
+  }
+
+  const opcoesEmb = [...q.op].sort(()=>Math.random()-0.5);
+  opcoesEmb.forEach(op => {
+    const btn = document.createElement("button");
+    btn.textContent = op;
+    btn.onclick = () => encerrarQuiz(op === q.r);
+    opcoesEl.appendChild(btn);
+  });
+
+  quizEl.style.display = "block";
+
+  timerQuiz = setInterval(() => {
+    tempoRestanteQuiz -= 0.1;
+    if (tempoRestanteQuiz <= 0) {
+      tempoRestanteQuiz = 0;
+      timerPreenchimento.style.width = "0%";
+      timerTexto.textContent = "0.0s";
+      encerrarQuiz("tempo");
+      return;
+    }
+    const pct = (tempoRestanteQuiz / tempoTotalQuiz) * 100;
+    timerPreenchimento.style.width = pct + "%";
+    timerTexto.textContent = tempoRestanteQuiz.toFixed(1) + "s";
+    if (tempoRestanteQuiz <= 1) timerPreenchimento.classList.add("urgente");
+  }, 100);
+}
+
+function mostrarFeedback(acertou, foiTempo) {
+  if (acertou) {
+    feedbackEl.textContent = "✅ Acertou! +15 pontos";
+    feedbackEl.className = "certo";
+  } else if (foiTempo) {
+    feedbackEl.textContent = "⏰ Tempo esgotado! -1 vida";
+    feedbackEl.className = "errado";
+  } else {
+    feedbackEl.textContent = "❌ Errou! -1 vida";
+    feedbackEl.className = "errado";
+  }
+  feedbackEl.style.display = "block";
+  setTimeout(() => { feedbackEl.style.display = "none"; }, 1200);
+}
+
+function atualizarVidas() { vidasEl.textContent = "❤️".repeat(Math.max(0,vidas)); }
+
+function colide(a, b) {
+  const ax = a.x + a.w*0.35, aw = a.w*0.3, ah = a.h*0.35;
+  const ay = a.y + a.h*0.55;
+  const bx = b.x + b.w*0.25, bw = b.w*0.5, bh = b.h*0.6;
+  const by = b.y + b.h*0.3;
+  return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+}
+function colideCoracao(a, c) {
+  const ax = a.x + a.w*0.35, aw = a.w*0.3, ah = a.h*0.35;
+  const ay = a.y + a.h*0.55;
+  return ax < c.x+c.w && ax+aw > c.x && ay < c.y+c.h && ay+ah > c.y;
+}
+
+function efeitoChoque() {
+  tocarSom("choque");
+  canvas.classList.add("shake");
+  flashChoque.classList.add("ativo");
+  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+  setTimeout(() => {
+    canvas.classList.remove("shake");
+    flashChoque.classList.remove("ativo");
+  }, 1000);
+}
+
+function exibirTop3() {
+  if (!rankingRef) return;
+  const top3El = document.getElementById("top3");
+  rankingRef.limitToLast(50).once("value")
+    .then(snapshot => {
+      const lista = [];
+      snapshot.forEach(child => lista.push(child.val()));
+      lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
+      const top3 = lista.slice(0,3);
+      const medalhas = ["🥇","🥈","🥉"];
+      top3El.innerHTML = top3.map((r,i) =>
+        `<div class="item"><span>${medalhas[i]} ${r.nome}</span><span>${r.pontos}</span></div>`
+      ).join("") || "<div class='item'>Sem registros ainda</div>";
+    })
+    .catch(erro => {
+      console.error("Erro ao carregar Top 3:", erro);
+      top3El.innerHTML = "<div class='item'>Erro ao carregar</div>";
+    });
+}
+
+function exibirRanking() {
+  if (!rankingRef) {
+    document.getElementById("listaRanking").innerHTML = "<div>Firebase não conectado.</div>";
+    return;
+  }
+  const div = document.getElementById("listaRanking");
+  div.innerHTML = "Carregando ranking...";
+  rankingRef.limitToLast(200).once("value")
+    .then(snapshot => {
+      const lista = [];
+      snapshot.forEach(child => lista.push(child.val()));
+      lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
+      div.innerHTML = lista.map((r,i) =>
+        `<div>${i+1}. ${r.nome} — ${r.pontos} pts<br><small>${r.data||""}</small></div>`
+      ).join("") || "<div>Nenhum registro ainda. Seja o primeiro!</div>";
+    })
+    .catch(erro => {
+      console.error("Erro ao carregar ranking completo:", erro);
+      div.innerHTML = "<div>⚠️ Erro ao carregar ranking. Verifique as regras do Firebase e sua conexão.</div>";
+    });
+}
+
+function salvarRanking() {
+  if (!rankingRef) {
+    mensagemSalvarEl.textContent = "❌ Firebase não está conectado.";
+    mensagemSalvarEl.className = "erro";
+    return;
+  }
+  if (jaSalvouRanking) {
+    mensagemSalvarEl.textContent = "✅ Você já salvou sua pontuação nesta partida.";
+    mensagemSalvarEl.className = "ok";
+    return;
+  }
+
+  const nome = document.getElementById("nomeJogador").value.trim() || "Anônimo";
+  const agora = new Date();
+  const dataFormatada = agora.toLocaleDateString('pt-BR') + " às " + agora.toLocaleTimeString('pt-BR');
+
+  const novoRegistroRef = rankingRef.push();
+  const registro = {
+    nome,
+    pontos: Math.floor(pontos),
+    data: dataFormatada,
+    timestamp: agora.getTime()
+  };
+
+  btnSalvar.disabled = true;
+  mensagemSalvarEl.textContent = "Salvando...";
+  mensagemSalvarEl.className = "";
+
+  novoRegistroRef.set(registro)
+    .then(() => {
+      jaSalvouRanking = true;
+      mensagemSalvarEl.textContent = "✅ Pontuação salva com sucesso!";
+      mensagemSalvarEl.className = "ok";
+      exibirRanking();
+      exibirTop3();
+    })
+    .catch(erro => {
+      console.error("Erro ao salvar ranking:", erro);
+      mensagemSalvarEl.textContent = "❌ Falha ao salvar: " + (erro.message || erro.code || "erro desconhecido");
+      mensagemSalvarEl.className = "erro";
+      btnSalvar.disabled = false;
+    });
+}
+
+function baixarTxt() {
+  if (!rankingRef) return;
+  rankingRef.once("value")
+    .then(snapshot => {
+      const lista = [];
+      snapshot.forEach(child => lista.push(child.val()));
+      lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
+      let texto = "RANKING - GLACIAL COMPUTE: RUM MAAMUTE\n\n";
+      lista.forEach((r,i) => texto += `${i+1}. ${r.nome} — ${r.pontos} pts — ${r.data}\n`);
+      const blob = new Blob([texto], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ranking_maamute.txt";
+      a.click();
+    })
+    .catch(erro => console.error("Erro ao baixar ranking:", erro));
+}
+
+function finalizarJogo() {
+  gameOver = true;
+  document.getElementById("pontosFinal").textContent = Math.floor(pontos);
+  jaSalvouRanking = false;
+  btnSalvar.disabled = false;
+  mensagemSalvarEl.textContent = "";
+  exibirRanking();
+  rankingBox.style.display = "block";
+}
+
+function loop() {
+  if (gameOver) return;
+  requestAnimationFrame(loop);
+  if (pausado) return;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  frame++;
+
+  mamute.y += mamute.vy;
+  mamute.vy += gravidade;
+  if (mamute.y >= chao - mamute.h) {
+    mamute.y = chao - mamute.h; mamute.vy = 0;
+    if (mamute.jumping && !mamute.teveColisaoNoPulo) {
+      pulosBemSucedidos++;
+      if (pulosBemSucedidos % 6 === 0) mostrarQuiz();
+    }
+    mamute.jumping = false;
+  }
+
+  const intervaloSpawn = Math.max(85, 140 - nivelDificuldade()*12);
+  if (frame % intervaloSpawn === 0) criarObstaculo();
+  if (frame % 500 === 0) criarCoracao();
+
+  obstaculos.forEach(o => o.x -= velocidade);
+  obstaculos = obstaculos.filter(o => o.x + o.w > 0);
+  coracoes.forEach(c => c.x -= velocidade);
+  coracoes = coracoes.filter(c => c.x + c.w > 0);
+
+  obstaculos.forEach(o => {
+    if (!o.atingido && colide(mamute, o)) {
+      o.atingido = true;
+      mamute.teveColisaoNoPulo = true;
+      vidas--;
+      atualizarVidas();
+      efeitoChoque();
+      if (vidas <= 0) { finalizarJogo(); return; }
+    }
+  });
+  if (gameOver) return;
+
+  coracoes.forEach(c => {
+    if (!c.pego && colideCoracao(mamute, c)) {
+      c.pego = true;
+      if (vidas < vidasMax) { vidas++; atualizarVidas(); tocarSom("vida"); }
+    }
+  });
+  coracoes = coracoes.filter(c => !c.pego);
+
+  pontos += 0.12;
+  scoreEl.textContent = Math.floor(pontos);
+  document.getElementById("nivelTxt").textContent = nivelDificuldade() + 1;
+
+  desenharFundo();
+  obstaculos.forEach(desenharObstaculo);
+  coracoes.forEach(desenharCoracao);
+  desenharMamute();
+}
+
+atualizarVidas();
+</script>
+</body>
+</html>
