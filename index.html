@@ -69,6 +69,8 @@
     font-size:13px; padding:12px 0; margin-top:16px;
   }
   footer strong { color:#8bc34a; }
+  footer a { color:#8bc34a; text-decoration:none; font-weight:bold; }
+  footer a:hover { text-decoration:underline; }
 
   #feedback {
     display:none; position:fixed; top:20%; left:50%; transform:translate(-50%,-50%);
@@ -106,7 +108,6 @@
   #timerPreenchimento.urgente { background:#c0392b; }
   #timerTexto { color:#134611; font-size:16px; margin-top:4px; font-weight:bold; }
 
-  /* Modal de ranking completo */
   #rankingCompletoModal {
     display:none; position:fixed; top:0; left:0; width:100%; height:100%;
     background:rgba(0,0,0,0.5); z-index:30; justify-content:center; align-items:center;
@@ -122,12 +123,41 @@
     border-bottom:1px solid #ccc; padding:6px 4px; color:#134611;
     font-size:14px; display:flex; justify-content:space-between; gap:12px;
   }
+
+  #bannerRecorde {
+    display:none; position:fixed; top:0; left:0; width:100%; z-index:40;
+    background:linear-gradient(90deg, #f0c419, #e74c3c, #8bc34a, #f0c419);
+    background-size: 300% 100%;
+    animation: moverGradiente 3s linear infinite, cairBanner 0.5s ease-out;
+    color:white; text-align:center; padding:16px 10px; font-size:24px; font-weight:bold;
+    box-shadow:0 4px 12px rgba(0,0,0,.4); text-shadow:0 2px 3px rgba(0,0,0,.4);
+  }
+  #bannerRecorde.mostrar { display:block; }
+  @keyframes moverGradiente {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+  @keyframes cairBanner {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(0); }
+  }
+  .confete {
+    position:fixed; top:-20px; width:10px; height:16px; z-index:39;
+    opacity:0.9; pointer-events:none;
+    animation: cair linear forwards;
+  }
+  @keyframes cair {
+    0% { transform: translateY(0) rotate(0deg); opacity:1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity:0.9; }
+  }
 </style>
 </head>
 <body>
 <header>
   <h1><span class="glacial">GLACIAL COMPUTE</span>: <span class="rum">RUM MAAMUTE</span></h1>
 </header>
+
+<div id="bannerRecorde">🎉 NOVO RECORDE! 🎉</div>
 
 <div id="colunaJogo">
   <div id="hud">
@@ -183,11 +213,10 @@
 </div>
 
 <footer>
-  Desenvolvido por <strong>Grupo MAAMUTE</strong>. © Copyright 2026, All Rights Reserved.
+  Desenvolvido por <strong><a href="https://www.maamute.com.br" target="_blank" rel="noopener">Grupo MAAMUTE</a></strong>. © Copyright 2026, All Rights Reserved.
 </footer>
 
 <script>
-// ================== RANKING via API REST do Firebase Realtime Database ==================
 const FIREBASE_DB_URL = "https://glacial-compute-rum-maamute-default-rtdb.europe-west1.firebasedatabase.app";
 const RANKING_PATH = "ranking_maamute";
 const RANKING_URL = `${FIREBASE_DB_URL}/${RANKING_PATH}.json`;
@@ -226,11 +255,8 @@ async function buscarRankingCompleto() {
 }
 
 async function testarConexaoFirebase() {
-  try {
-    await buscarRankingCompleto();
-  } catch (erro) {
-    console.error("Erro ao testar conexão com Firebase:", erro);
-  }
+  try { await buscarRankingCompleto(); }
+  catch (erro) { console.error("Erro ao testar conexão com Firebase:", erro); }
 }
 </script>
 
@@ -248,6 +274,7 @@ const flashChoque = document.getElementById("flashChoque");
 const statusSalvarEl = document.getElementById("statusSalvar");
 const btnSalvar = document.getElementById("btnSalvar");
 const telaInicioEl = document.getElementById("telaInicio");
+const bannerRecordeEl = document.getElementById("bannerRecorde");
 
 let chao = 0;
 let mamute = { x:60, y:0, w:90, h:90, vy:0, jumping:false, teveColisaoNoPulo:false, pernaFase:0 };
@@ -266,6 +293,43 @@ let gameOver = false;
 let pulosBemSucedidos = 0;
 let jaSalvouNestaPartida = false;
 let jogoIniciado = false;
+
+// ---------- Recorde local (só usado/exibido no fim de jogo) ----------
+const CHAVE_RECORDE = "recordeMaamute";
+let recordeAtual = parseInt(localStorage.getItem(CHAVE_RECORDE) || "0", 10);
+
+function atualizarRecordeComRanking() {
+  buscarRankingCompleto().then(lista => {
+    let maiorRemoto = 0;
+    lista.forEach(r => { if ((r.pontos||0) > maiorRemoto) maiorRemoto = r.pontos; });
+    if (maiorRemoto > recordeAtual) {
+      recordeAtual = maiorRemoto;
+      localStorage.setItem(CHAVE_RECORDE, String(recordeAtual));
+    }
+  }).catch(()=>{});
+}
+
+function dispararConfetes() {
+  const cores = ["#f0c419","#e74c3c","#8bc34a","#134611","#ffffff","#3498db"];
+  for (let i=0;i<60;i++) {
+    const c = document.createElement("div");
+    c.className = "confete";
+    c.style.left = Math.random()*100 + "vw";
+    c.style.background = cores[Math.floor(Math.random()*cores.length)];
+    c.style.animationDuration = (2.5 + Math.random()*2) + "s";
+    c.style.width = (6 + Math.random()*6) + "px";
+    c.style.height = (10 + Math.random()*10) + "px";
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 5000);
+  }
+}
+
+function mostrarBannerRecorde() {
+  bannerRecordeEl.classList.add("mostrar");
+  dispararConfetes();
+  tocarSom("acerto");
+  setTimeout(() => { bannerRecordeEl.classList.remove("mostrar"); }, 3500);
+}
 
 let montanhas = [];
 let arvores = [];
@@ -367,6 +431,7 @@ window.addEventListener("load", () => {
   resize();
   inicializarCenario();
   testarConexaoFirebase();
+  atualizarRecordeComRanking();
   exibirTop3();
   loop();
 });
@@ -658,40 +723,74 @@ function nivelDificuldade() {
   return 4;
 }
 
+// ---------- Geração procedural de obstáculos (com espaçamento seguro) ----------
+// A distância mínima entre grupos de obstáculos é calculada a partir do
+// tempo de voo do salto do mamute, garantindo que sempre seja possível
+// saltar por cima de cada grupo antes que o próximo apareça.
+
+let framesParaProximoObstaculo = 90;
+
+function tipoAleatorio() {
+  const tipos = ["iceberg","espinho","pedra"];
+  return tipos[Math.floor(Math.random()*tipos.length)];
+}
+
+function novaAlturaObstaculo(nivel) {
+  const alturaBase = 28 + Math.random()*22;
+  const alturaExtra = nivel * (4 + Math.random()*4);
+  return Math.min(75, alturaBase + alturaExtra);
+}
+
+// Retorna a largura total ocupada pelo grupo gerado (do início ao fim)
 function criarObstaculo() {
   const nivel = nivelDificuldade();
-  const tipos = ["iceberg","espinho","pedra"];
-  const tipo = tipos[Math.floor(Math.random()*tipos.length)];
+  const largura = 40 + nivel * 2 + Math.random()*8;
 
-  const alturaBase = 35 + Math.random()*25;
-  const alturaExtra = nivel * (6 + Math.random()*5);
-  const h = Math.min(90, alturaBase + alturaExtra);
-  const largura = 42 + nivel * 3;
+  const padroes = ["unico", "unico", "unico", "duplo"];
+  if (nivel >= 2) padroes.push("duplo", "escalonado");
+  if (nivel >= 3) padroes.push("trio");
+  const padrao = padroes[Math.floor(Math.random()*padroes.length)];
 
-  obstaculos.push({ x: canvas.width, y: chao-h, w: largura, h, tipo });
+  let inicioX = canvas.width;
+  let fimX = canvas.width;
 
-  if (nivel >= 2 && Math.random() < 0.35) {
-    const h2 = Math.min(85, 30 + Math.random()*20 + nivel*4);
-    const espaco = 90 - nivel*4;
-    obstaculos.push({
-      x: canvas.width + largura + espaco,
-      y: chao - h2,
-      w: largura,
-      h: h2,
-      tipo: tipos[Math.floor(Math.random()*tipos.length)]
-    });
+  if (padrao === "unico") {
+    const h = novaAlturaObstaculo(nivel);
+    obstaculos.push({ x: inicioX, y: chao-h, w: largura, h, tipo: tipoAleatorio() });
+    fimX = inicioX + largura;
+
+  } else if (padrao === "duplo") {
+    const h1 = novaAlturaObstaculo(nivel);
+    obstaculos.push({ x: inicioX, y: chao-h1, w: largura, h: h1, tipo: tipoAleatorio() });
+    const espacoInterno = 110 + Math.random()*40;
+    const x2 = inicioX + largura + espacoInterno;
+    const h2 = novaAlturaObstaculo(nivel);
+    obstaculos.push({ x: x2, y: chao-h2, w: largura, h: h2, tipo: tipoAleatorio() });
+    fimX = x2 + largura;
+
+  } else if (padrao === "escalonado") {
+    const qtd = 2;
+    let alturaInicial = 22 + Math.random()*15;
+    const crescente = Math.random() < 0.5;
+    let xAtual = inicioX;
+    for (let i=0;i<qtd;i++) {
+      const h = Math.min(70, alturaInicial + (crescente ? i : (qtd-1-i)) * (8 + nivel*2));
+      obstaculos.push({ x: xAtual, y: chao-h, w: largura*0.9, h, tipo: tipoAleatorio() });
+      xAtual += largura*0.9 + 100 + Math.random()*30;
+    }
+    fimX = xAtual;
+
+  } else if (padrao === "trio") {
+    let xAtual = inicioX;
+    for (let i=0;i<3;i++) {
+      const h = novaAlturaObstaculo(nivel) * (0.6 + Math.random()*0.3);
+      obstaculos.push({ x: xAtual, y: chao-h, w: largura*0.8, h, tipo: tipoAleatorio() });
+      xAtual += largura*0.8 + 90 + Math.random()*25;
+    }
+    fimX = xAtual;
   }
 
-  if (nivel >= 3 && Math.random() < 0.15) {
-    const h3 = Math.min(80, 30 + Math.random()*18 + nivel*3);
-    obstaculos.push({
-      x: canvas.width + largura*2 + 170,
-      y: chao - h3,
-      w: largura,
-      h: h3,
-      tipo: tipos[Math.floor(Math.random()*tipos.length)]
-    });
-  }
+  return fimX - inicioX;
 }
 
 function criarCoracao() {
@@ -707,16 +806,58 @@ function bancoPerguntas() {
     { p:"Quanto é 20 ÷ 4?", op:[4,5,6], r:5 },
     { p:"Quanto é 3 x 3?", op:[6,9,12], r:9 },
     { p:"Quanto é 15 - 8?", op:[6,7,8], r:7 },
+    { p:"Quanto é 8 + 8?", op:[14,16,18], r:16 },
+    { p:"Quanto é 12 x 3?", op:[32,36,40], r:36 },
+    { p:"Quanto é 45 ÷ 9?", op:[4,5,6], r:5 },
+    { p:"Quanto é 100 - 37?", op:[63,67,73], r:63 },
+    { p:"Quanto é 7 x 8?", op:[54,56,64], r:56 },
+    { p:"Quanto é 6 x 7?", op:[36,42,48], r:42 },
+    { p:"Quanto é 11 x 11?", op:[110,121,132], r:121 },
+    { p:"Quanto é 50 ÷ 5?", op:[8,10,12], r:10 },
+    { p:"Quanto é 13 + 19?", op:[30,32,34], r:32 },
+    { p:"Qual o triplo de 9?", op:[24,27,30], r:27 },
+    { p:"Quanto é 144 ÷ 12?", op:[10,12,14], r:12 },
+    { p:"Quanto é 9 x 9?", op:[72,81,90], r:81 },
     { p:"Qual a raiz quadrada de 16?", op:[4,5,6], r:4 },
     { p:"Qual a raiz quadrada de 25?", op:[4,5,6], r:5 },
     { p:"Qual a raiz cúbica de 8?", op:[2,3,4], r:2 },
     { p:"Qual a raiz quadrada de 49?", op:[6,7,8], r:7 },
     { p:"Qual a raiz cúbica de 27?", op:[2,3,4], r:3 },
+    { p:"Qual a raiz quadrada de 81?", op:[8,9,10], r:9 },
+    { p:"Qual a raiz quadrada de 100?", op:[9,10,11], r:10 },
+    { p:"Quanto é 2 elevado a 4?", op:[8,16,32], r:16 },
+    { p:"Quanto é 3 elevado a 3?", op:[9,27,81], r:27 },
+    { p:"Quanto é 5 elevado a 2?", op:[10,25,50], r:25 },
+    { p:"Qual a raiz quadrada de 121?", op:[10,11,12], r:11 },
+    { p:"Qual a raiz cúbica de 64?", op:[4,6,8], r:4 },
     { p:"A soma dos ângulos internos de um triângulo é?", op:["90°","180°","360°"], r:"180°" },
     { p:"Um ângulo reto mede quantos graus?", op:["45°","90°","180°"], r:"90°" },
     { p:"A soma dos ângulos internos de um quadrado é?", op:["180°","270°","360°"], r:"360°" },
     { p:"Dois ângulos que somam 90° são chamados de?", op:["Complementares","Suplementares","Opostos"], r:"Complementares" },
     { p:"Dois ângulos que somam 180° são chamados de?", op:["Complementares","Suplementares","Retos"], r:"Suplementares" },
+    { p:"Um ângulo maior que 90° e menor que 180° é chamado de?", op:["Agudo","Obtuso","Reto"], r:"Obtuso" },
+    { p:"Um ângulo menor que 90° é chamado de?", op:["Agudo","Obtuso","Raso"], r:"Agudo" },
+    { p:"A soma dos ângulos internos de um pentágono é?", op:["360°","540°","720°"], r:"540°" },
+    { p:"Um ângulo de 180° é chamado de?", op:["Reto","Raso","Agudo"], r:"Raso" },
+    { p:"Quantos lados tem um hexágono?", op:[5,6,7], r:6 },
+    { p:"Quantos lados tem um pentágono?", op:[4,5,6], r:5 },
+    { p:"Qual a área de um quadrado de lado 5?", op:[10,20,25], r:25 },
+    { p:"Qual o perímetro de um quadrado de lado 4?", op:[8,16,20], r:16 },
+    { p:"Qual a área de um retângulo 3x6?", op:[9,18,24], r:18 },
+    { p:"Quantos lados tem um octógono?", op:[6,8,10], r:8 },
+    { p:"Um triângulo com 3 lados iguais é chamado de?", op:["Equilátero","Isósceles","Escaleno"], r:"Equilátero" },
+    { p:"Um triângulo com 2 lados iguais é chamado de?", op:["Equilátero","Isósceles","Escaleno"], r:"Isósceles" },
+    { p:"Quanto é 50% de 200?", op:[50,100,150], r:100 },
+    { p:"Quanto é 1/4 de 40?", op:[8,10,12], r:10 },
+    { p:"Quanto é 25% de 80?", op:[15,20,25], r:20 },
+    { p:"Quanto é 1/2 de 90?", op:[40,45,50], r:45 },
+    { p:"Quanto é 10% de 300?", op:[20,30,40], r:30 },
+    { p:"Quanto é 3/4 de 20?", op:[10,15,20], r:15 },
+    { p:"Qual o próximo número: 2, 4, 6, 8, ...?", op:[9,10,12], r:10 },
+    { p:"Qual o próximo número: 1, 2, 4, 8, ...?", op:[10,12,16], r:16 },
+    { p:"Qual o próximo número: 5, 10, 15, ...?", op:[18,20,25], r:20 },
+    { p:"Qual o número que falta: 3, 6, 9, __, 15?", op:[10,11,12], r:12 },
+    { p:"Qual é o número par mais próximo de 17?", op:[16,17,18], r:16 },
   ];
 }
 
@@ -829,8 +970,6 @@ function efeitoChoque() {
   }, 1000);
 }
 
-// ---------- Exibição do ranking na tela ----------
-
 async function exibirTop3() {
   const top3El = document.getElementById("top3");
   try {
@@ -910,16 +1049,27 @@ async function salvarRanking() {
   }
 }
 
+// ---------- Fim de jogo: recorde só é checado e exibido aqui ----------
 function finalizarJogo() {
   gameOver = true;
   jaSalvouNestaPartida = false;
-  document.getElementById("pontosFinal").textContent = Math.floor(pontos);
+  const pontosFinal = Math.floor(pontos);
+  document.getElementById("pontosFinal").textContent = pontosFinal;
   document.getElementById("nomeJogador").disabled = false;
   document.getElementById("nomeJogador").value = "";
   btnSalvar.disabled = false;
   statusSalvarEl.textContent = "";
   erroFirebaseEl.style.display = "none";
-  rankingBox.style.display = "block";
+
+  const bateuRecorde = pontosFinal > recordeAtual;
+  if (bateuRecorde) {
+    recordeAtual = pontosFinal;
+    localStorage.setItem(CHAVE_RECORDE, String(recordeAtual));
+    mostrarBannerRecorde();
+    setTimeout(() => { rankingBox.style.display = "block"; }, 1300);
+  } else {
+    rankingBox.style.display = "block";
+  }
 }
 
 function loop() {
@@ -948,8 +1098,17 @@ function loop() {
     mamute.jumping = false;
   }
 
-  const intervaloSpawn = Math.max(85, 140 - nivelDificuldade()*12);
-  if (frame % intervaloSpawn === 0) criarObstaculo();
+  framesParaProximoObstaculo--;
+  if (framesParaProximoObstaculo <= 0) {
+    const larguraGrupo = criarObstaculo();
+    // distância mínima de segurança baseada no tempo de voo do salto
+    const distanciaSeguranca = 230 + Math.random()*40;
+    framesParaProximoObstaculo = Math.max(
+      40,
+      Math.round((larguraGrupo + distanciaSeguranca) / velocidade)
+    );
+  }
+
   if (frame % 500 === 0) criarCoracao();
 
   obstaculos.forEach(o => o.x -= velocidade);
