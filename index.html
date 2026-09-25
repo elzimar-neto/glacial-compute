@@ -15,7 +15,6 @@
   header h1 { margin:0; font-size:24px; letter-spacing:1px; }
   header h1 .glacial { color:#8bc34a; }
   header h1 .rum { color:#f0c419; }
-  header p.subtitulo { margin:4px 0 0; font-size:12px; color:#cfe6c9; letter-spacing:2px; }
 
   #colunaJogo { width:95vw; max-width:1400px; display:flex; flex-direction:column; align-items:center; margin-top:8px; }
   #hud { display:flex; justify-content:space-between; width:100%; font-size:20px; color:#134611; font-weight:bold; }
@@ -45,11 +44,20 @@
   #flashChoque.ativo { animation: flashAnim 1s; }
   @keyframes flashAnim { 0%{opacity:1;} 100%{opacity:0;} }
 
+  #telaInicio {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:rgba(19,70,17,0.55); display:flex; align-items:center; justify-content:center;
+    border-radius:12px; z-index:5; cursor:pointer;
+  }
+  #telaInicio p {
+    color:white; font-size:22px; font-weight:bold; text-align:center;
+    text-shadow:0 2px 4px rgba(0,0,0,.4); padding:0 20px;
+  }
+
   #rankingOverlay {
-    position:absolute; top:12px; right:12px; width:190px;
-    background:rgba(255,255,255,0.55); border:2px solid rgba(19,70,17,0.6);
+    position:absolute; top:12px; right:12px; width:200px;
+    background:rgba(255,255,255,0.6); border:2px solid rgba(19,70,17,0.6);
     border-radius:12px; padding:8px; backdrop-filter: blur(2px);
-    pointer-events:none;
   }
   #rankingOverlay h3 { margin:0 0 6px; color:#134611; text-align:center; font-size:14px; }
   #rankingOverlay .item { display:flex; justify-content:space-between; color:#134611; font-size:12px; padding:2px 0; }
@@ -81,8 +89,12 @@
   }
   #quiz button:hover, #rankingBox button:hover { background:#c0392b; }
   #rankingBox input { font-size:18px; padding:6px; border-radius:6px; border:2px solid #134611; }
-  #listaRanking { text-align:left; max-height:220px; overflow-y:auto; margin:10px 0; }
-  #listaRanking div { border-bottom:1px solid #ccc; padding:4px 0; color:#134611; font-size:14px; }
+
+  #erroFirebase {
+    display:none; background:#ffcdd2; color:#b71c1c; font-size:13px;
+    padding:8px; border-radius:8px; margin:8px 0; text-align:left; word-break: break-word;
+  }
+  #statusSalvar { font-size:13px; margin-top:6px; min-height:18px; font-weight:bold; }
 
   #timerBarra {
     width: 100%; height: 10px; background:#e0e0e0; border-radius:6px;
@@ -94,24 +106,27 @@
   #timerPreenchimento.urgente { background:#c0392b; }
   #timerTexto { color:#134611; font-size:16px; margin-top:4px; font-weight:bold; }
 
-  #statusFirebase {
-    font-size:12px; margin-top:4px; font-weight:bold;
+  /* Modal de ranking completo */
+  #rankingCompletoModal {
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.5); z-index:30; justify-content:center; align-items:center;
   }
-  #statusFirebase.ok { color:#1b5e20; }
-  #statusFirebase.erro { color:#b71c1c; }
-  #statusFirebase.carregando { color:#134611; opacity:0.7; }
-
-  #mensagemSalvar {
-    font-size:14px; margin-top:6px; min-height:18px; font-weight:bold;
+  #rankingCompletoModal.aberto { display:flex; }
+  #rankingCompletoModal .caixa {
+    background:white; border:4px solid #134611; border-radius:16px;
+    padding:25px 30px; max-width:90vw; max-height:85vh; overflow-y:auto;
+    box-shadow:0 8px 20px rgba(0,0,0,.4);
   }
-  #mensagemSalvar.ok { color:#1b5e20; }
-  #mensagemSalvar.erro { color:#b71c1c; }
+  #listaRankingCompleta { text-align:left; min-width:280px; }
+  #listaRankingCompleta .linha {
+    border-bottom:1px solid #ccc; padding:6px 4px; color:#134611;
+    font-size:14px; display:flex; justify-content:space-between; gap:12px;
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>🦣 <span class="glacial">GLACIAL COMPUTE</span>: <span class="rum">RUM MAAMUTE</span></h1>
-  <p class="subtitulo">CORRIDA ÁRTICA • DESAFIOS DE LÓGICA</p>
+  <h1><span class="glacial">GLACIAL COMPUTE</span>: <span class="rum">RUM MAAMUTE</span></h1>
 </header>
 
 <div id="colunaJogo">
@@ -123,13 +138,15 @@
   <div id="canvasWrap">
     <canvas id="game"></canvas>
     <div id="flashChoque"></div>
+    <div id="telaInicio">
+      <p>Toque na tela ou aperte ESPAÇO<br>para começar</p>
+    </div>
     <div id="rankingOverlay">
       <h3>🏆 Top 3</h3>
       <div id="top3">Carregando...</div>
     </div>
   </div>
   <div id="dica">Clique, toque na tela ou aperte ESPAÇO para pular!</div>
-  <div id="statusFirebase" class="carregando">Conectando ao ranking online...</div>
 </div>
 
 <div id="feedback"></div>
@@ -144,58 +161,76 @@
 <div id="rankingBox">
   <p id="tituloRanking">Fim de jogo!</p>
   <p>Pontuação: <span id="pontosFinal"></span></p>
+  <div id="erroFirebase"></div>
   <input id="nomeJogador" placeholder="Digite seu nome" maxlength="15">
   <br>
-  <button id="btnSalvar" onclick="salvarRanking()">💾 Salvar no Ranking</button>
-  <div id="mensagemSalvar"></div>
-  <div id="listaRanking">Carregando ranking...</div>
-  <button onclick="baixarTxt()">⬇️ Baixar Ranking (.txt)</button>
-  <button onclick="location.reload()">🔄 Jogar de novo</button>
+  <button id="btnSalvar" onclick="salvarRanking()">Salvar no Ranking</button>
+  <div id="statusSalvar"></div>
+  <br>
+  <a href="#" id="linkRankingCompleto" onclick="abrirRankingCompleto(event)" style="color:#134611; text-decoration:underline; font-size:15px; display:inline-block; margin-top:10px;">Ver ranking completo</a>
+  <br>
+  <button onclick="location.reload()">Jogar de novo</button>
+</div>
+
+<div id="rankingCompletoModal">
+  <div class="caixa">
+    <h2 style="color:#134611; margin-top:0; text-align:center;">🏆 Ranking Completo</h2>
+    <div id="listaRankingCompleta">Carregando...</div>
+    <div style="text-align:center; margin-top:16px;">
+      <button onclick="fecharRankingCompleto()" style="padding:10px 18px; font-size:16px; border:none; border-radius:8px; background:#134611; color:white; cursor:pointer;">Fechar</button>
+    </div>
+  </div>
 </div>
 
 <footer>
   Desenvolvido por <strong>Grupo MAAMUTE</strong>. © Copyright 2026, All Rights Reserved.
 </footer>
 
-<!-- Firebase SDK (compat, via CDN) -->
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
-
 <script>
-// ---------- Configuração do Firebase ----------
-const firebaseConfig = {
-  apiKey: "AIzaSyCEQTpzU_jdse_qfjhjyoh2iXQidrANPaI",
-  authDomain: "glacial-compute-rum-maamute.firebaseapp.com",
-  databaseURL: "https://glacial-compute-rum-maamute-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "glacial-compute-rum-maamute",
-  storageBucket: "glacial-compute-rum-maamute.firebasestorage.app",
-  messagingSenderId: "753923864067",
-  appId: "1:753923864067:web:dc2db44526c9a432c80036",
-  measurementId: "G-S68JNCJL3T"
-};
+// ================== RANKING via API REST do Firebase Realtime Database ==================
+const FIREBASE_DB_URL = "https://glacial-compute-rum-maamute-default-rtdb.europe-west1.firebasedatabase.app";
+const RANKING_PATH = "ranking_maamute";
+const RANKING_URL = `${FIREBASE_DB_URL}/${RANKING_PATH}.json`;
 
-let db, rankingRef;
-const statusEl = document.getElementById("statusFirebase");
+const erroFirebaseEl = document.getElementById("erroFirebase");
 
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.database();
-  rankingRef = db.ref("ranking_maamute");
+function mostrarErroFirebase(msg) {
+  erroFirebaseEl.style.display = "block";
+  erroFirebaseEl.innerHTML =
+    "⚠️ <strong>Erro no ranking online:</strong> " + msg +
+    "<br><small>Verifique as regras do Realtime Database (.read/.write true) no nó ranking_maamute.</small>";
+}
 
-  const conexaoRef = db.ref(".info/connected");
-  conexaoRef.on("value", (snap) => {
-    if (snap.val() === true) {
-      statusEl.textContent = "🔥 Ranking online conectado";
-      statusEl.className = "ok";
-    } else {
-      statusEl.textContent = "⚠️ Sem conexão com o servidor do ranking";
-      statusEl.className = "erro";
-    }
+async function salvarPontuacaoNoFirebase(registro) {
+  const resposta = await fetch(RANKING_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(registro)
   });
-} catch (erro) {
-  console.error("Erro ao inicializar o Firebase:", erro);
-  statusEl.textContent = "❌ Erro ao conectar ao Firebase (veja o console)";
-  statusEl.className = "erro";
+  if (!resposta.ok) {
+    const textoErro = await resposta.text();
+    throw new Error(`HTTP ${resposta.status}: ${textoErro}`);
+  }
+  return resposta.json();
+}
+
+async function buscarRankingCompleto() {
+  const resposta = await fetch(RANKING_URL);
+  if (!resposta.ok) {
+    const textoErro = await resposta.text();
+    throw new Error(`HTTP ${resposta.status}: ${textoErro}`);
+  }
+  const dados = await resposta.json();
+  if (!dados) return [];
+  return Object.values(dados);
+}
+
+async function testarConexaoFirebase() {
+  try {
+    await buscarRankingCompleto();
+  } catch (erro) {
+    console.error("Erro ao testar conexão com Firebase:", erro);
+  }
 }
 </script>
 
@@ -210,8 +245,9 @@ const opcoesEl = document.getElementById("opcoes");
 const rankingBox = document.getElementById("rankingBox");
 const feedbackEl = document.getElementById("feedback");
 const flashChoque = document.getElementById("flashChoque");
-const mensagemSalvarEl = document.getElementById("mensagemSalvar");
+const statusSalvarEl = document.getElementById("statusSalvar");
 const btnSalvar = document.getElementById("btnSalvar");
+const telaInicioEl = document.getElementById("telaInicio");
 
 let chao = 0;
 let mamute = { x:60, y:0, w:90, h:90, vy:0, jumping:false, teveColisaoNoPulo:false, pernaFase:0 };
@@ -228,7 +264,8 @@ let frame = 0;
 let pausado = false;
 let gameOver = false;
 let pulosBemSucedidos = 0;
-let jaSalvouRanking = false;
+let jaSalvouNestaPartida = false;
+let jogoIniciado = false;
 
 let montanhas = [];
 let arvores = [];
@@ -326,7 +363,13 @@ function resize() {
   mamute.y = chao - mamute.h;
 }
 window.addEventListener("resize", resize);
-window.addEventListener("load", () => { resize(); inicializarCenario(); exibirTop3(); loop(); });
+window.addEventListener("load", () => {
+  resize();
+  inicializarCenario();
+  testarConexaoFirebase();
+  exibirTop3();
+  loop();
+});
 
 function desenharMontanhas() {
   ctx.fillStyle = "#cfe6f2";
@@ -589,7 +632,14 @@ function desenharCoracao(c) {
   ctx.restore();
 }
 
+function iniciarJogo() {
+  if (jogoIniciado) return;
+  jogoIniciado = true;
+  telaInicioEl.style.display = "none";
+}
+
 function pular() {
+  if (!jogoIniciado) { iniciarJogo(); return; }
   if (!mamute.jumping && !pausado) {
     mamute.vy = forcaPulo;
     mamute.jumping = true;
@@ -779,117 +829,96 @@ function efeitoChoque() {
   }, 1000);
 }
 
-function exibirTop3() {
-  if (!rankingRef) return;
+// ---------- Exibição do ranking na tela ----------
+
+async function exibirTop3() {
   const top3El = document.getElementById("top3");
-  rankingRef.limitToLast(50).once("value")
-    .then(snapshot => {
-      const lista = [];
-      snapshot.forEach(child => lista.push(child.val()));
-      lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
-      const top3 = lista.slice(0,3);
-      const medalhas = ["🥇","🥈","🥉"];
-      top3El.innerHTML = top3.map((r,i) =>
-        `<div class="item"><span>${medalhas[i]} ${r.nome}</span><span>${r.pontos}</span></div>`
-      ).join("") || "<div class='item'>Sem registros ainda</div>";
-    })
-    .catch(erro => {
-      console.error("Erro ao carregar Top 3:", erro);
-      top3El.innerHTML = "<div class='item'>Erro ao carregar</div>";
-    });
+  try {
+    const lista = await buscarRankingCompleto();
+    lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
+    const top3 = lista.slice(0,3);
+    const medalhas = ["🥇","🥈","🥉"];
+    top3El.innerHTML = top3.length
+      ? top3.map((r,i) => `<div class="item"><span>${medalhas[i]} ${r.nome}</span><span>${r.pontos}</span></div>`).join("")
+      : "<div class='item'>Sem registros ainda</div>";
+  } catch (erro) {
+    console.error("Erro ao buscar Top 3:", erro);
+    top3El.innerHTML = "<div class='item'>Erro ao carregar</div>";
+  }
 }
 
-function exibirRanking() {
-  if (!rankingRef) {
-    document.getElementById("listaRanking").innerHTML = "<div>Firebase não conectado.</div>";
-    return;
+async function abrirRankingCompleto(evento) {
+  evento.preventDefault();
+  const modal = document.getElementById("rankingCompletoModal");
+  const div = document.getElementById("listaRankingCompleta");
+  modal.classList.add("aberto");
+  div.innerHTML = "Carregando...";
+  try {
+    const lista = await buscarRankingCompleto();
+    lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
+    div.innerHTML = lista.length
+      ? lista.map((r,i) =>
+          `<div class="linha"><span>${i+1}. ${r.nome} — <strong>${r.pontos} pts</strong></span><span>${r.data||""}</span></div>`
+        ).join("")
+      : "<div class='linha'>Nenhum registro ainda. Seja o primeiro!</div>";
+  } catch (erro) {
+    console.error("Erro ao buscar ranking completo:", erro);
+    div.innerHTML = "<div class='linha'>Erro ao carregar ranking.</div>";
   }
-  const div = document.getElementById("listaRanking");
-  div.innerHTML = "Carregando ranking...";
-  rankingRef.limitToLast(200).once("value")
-    .then(snapshot => {
-      const lista = [];
-      snapshot.forEach(child => lista.push(child.val()));
-      lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
-      div.innerHTML = lista.map((r,i) =>
-        `<div>${i+1}. ${r.nome} — ${r.pontos} pts<br><small>${r.data||""}</small></div>`
-      ).join("") || "<div>Nenhum registro ainda. Seja o primeiro!</div>";
-    })
-    .catch(erro => {
-      console.error("Erro ao carregar ranking completo:", erro);
-      div.innerHTML = "<div>⚠️ Erro ao carregar ranking. Verifique as regras do Firebase e sua conexão.</div>";
-    });
 }
 
-function salvarRanking() {
-  if (!rankingRef) {
-    mensagemSalvarEl.textContent = "❌ Firebase não está conectado.";
-    mensagemSalvarEl.className = "erro";
-    return;
-  }
-  if (jaSalvouRanking) {
-    mensagemSalvarEl.textContent = "✅ Você já salvou sua pontuação nesta partida.";
-    mensagemSalvarEl.className = "ok";
+function fecharRankingCompleto() {
+  document.getElementById("rankingCompletoModal").classList.remove("aberto");
+}
+
+async function salvarRanking() {
+  if (jaSalvouNestaPartida) {
+    statusSalvarEl.textContent = "✅ Você já salvou esta pontuação.";
+    statusSalvarEl.style.color = "#134611";
     return;
   }
 
-  const nome = document.getElementById("nomeJogador").value.trim() || "Anônimo";
+  const nomeInput = document.getElementById("nomeJogador");
+  const nome = nomeInput.value.trim() || "Anônimo";
+
+  btnSalvar.disabled = true;
+  statusSalvarEl.textContent = "Salvando...";
+  statusSalvarEl.style.color = "#134611";
+  erroFirebaseEl.style.display = "none";
+
   const agora = new Date();
-  const dataFormatada = agora.toLocaleDateString('pt-BR') + " às " + agora.toLocaleTimeString('pt-BR');
-
-  const novoRegistroRef = rankingRef.push();
   const registro = {
     nome,
     pontos: Math.floor(pontos),
-    data: dataFormatada,
+    data: agora.toLocaleDateString('pt-BR') + " às " + agora.toLocaleTimeString('pt-BR'),
     timestamp: agora.getTime()
   };
 
-  btnSalvar.disabled = true;
-  mensagemSalvarEl.textContent = "Salvando...";
-  mensagemSalvarEl.className = "";
-
-  novoRegistroRef.set(registro)
-    .then(() => {
-      jaSalvouRanking = true;
-      mensagemSalvarEl.textContent = "✅ Pontuação salva com sucesso!";
-      mensagemSalvarEl.className = "ok";
-      exibirRanking();
-      exibirTop3();
-    })
-    .catch(erro => {
-      console.error("Erro ao salvar ranking:", erro);
-      mensagemSalvarEl.textContent = "❌ Falha ao salvar: " + (erro.message || erro.code || "erro desconhecido");
-      mensagemSalvarEl.className = "erro";
-      btnSalvar.disabled = false;
-    });
-}
-
-function baixarTxt() {
-  if (!rankingRef) return;
-  rankingRef.once("value")
-    .then(snapshot => {
-      const lista = [];
-      snapshot.forEach(child => lista.push(child.val()));
-      lista.sort((a,b) => (b.pontos||0) - (a.pontos||0));
-      let texto = "RANKING - GLACIAL COMPUTE: RUM MAAMUTE\n\n";
-      lista.forEach((r,i) => texto += `${i+1}. ${r.nome} — ${r.pontos} pts — ${r.data}\n`);
-      const blob = new Blob([texto], { type: "text/plain" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "ranking_maamute.txt";
-      a.click();
-    })
-    .catch(erro => console.error("Erro ao baixar ranking:", erro));
+  try {
+    await salvarPontuacaoNoFirebase(registro);
+    jaSalvouNestaPartida = true;
+    statusSalvarEl.textContent = "✅ Pontuação salva com sucesso!";
+    statusSalvarEl.style.color = "#1b5e20";
+    nomeInput.disabled = true;
+    await exibirTop3();
+  } catch (erro) {
+    console.error("Erro ao salvar ranking:", erro);
+    statusSalvarEl.textContent = "❌ Falha ao salvar (veja detalhes abaixo).";
+    statusSalvarEl.style.color = "#b71c1c";
+    mostrarErroFirebase(erro.message);
+    btnSalvar.disabled = false;
+  }
 }
 
 function finalizarJogo() {
   gameOver = true;
+  jaSalvouNestaPartida = false;
   document.getElementById("pontosFinal").textContent = Math.floor(pontos);
-  jaSalvouRanking = false;
+  document.getElementById("nomeJogador").disabled = false;
+  document.getElementById("nomeJogador").value = "";
   btnSalvar.disabled = false;
-  mensagemSalvarEl.textContent = "";
-  exibirRanking();
+  statusSalvarEl.textContent = "";
+  erroFirebaseEl.style.display = "none";
   rankingBox.style.display = "block";
 }
 
@@ -899,6 +928,13 @@ function loop() {
   if (pausado) return;
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if (!jogoIniciado) {
+    desenharFundo();
+    desenharMamute();
+    return;
+  }
+
   frame++;
 
   mamute.y += mamute.vy;
