@@ -190,6 +190,33 @@
       display:none !important;
     }
   }
+
+  /* ---------- Ajuste fino para celulares em modo paisagem ---------- */
+  @media (max-height: 500px) and (orientation: landscape) {
+    header { padding:4px 0 3px; }
+    header h1 { font-size:15px; }
+
+    footer { display:none; } /* footer não é essencial durante o jogo em paisagem */
+
+    #colunaJogo { margin-top:2px; }
+    #hud { font-size:13px; }
+    #dica { font-size:11px; margin-top:2px; }
+
+    #rankingOverlay { width:110px; padding:4px; top:6px; right:6px; }
+    #rankingOverlay h3 { font-size:11px; margin-bottom:3px; }
+    #rankingOverlay .item { font-size:10px; }
+
+    #telaInicio p { font-size:16px; }
+
+    canvas { border-width:3px; }
+  }
+
+  @media (max-height: 420px) and (orientation: landscape) {
+    header { display:none; } /* em telas muito baixas, escondemos até o cabeçalho */
+    #dica { display:none; }
+    #rankingOverlay { width:90px; }
+    #rankingOverlay h3 { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -320,9 +347,6 @@ async function tentarTravarOrientacaoPaisagem() {
       await screen.orientation.lock("landscape");
     }
   } catch (erro) {
-    // Muitos navegadores só permitem o lock em modo fullscreen,
-    // ou não suportam a API — nesses casos, o aviso visual (#avisoGirar)
-    // já cobre o pedido para o usuário girar manualmente.
     console.warn("Não foi possível travar a orientação automaticamente:", erro.message);
   }
 }
@@ -340,10 +364,7 @@ function solicitarFullscreenEOrientacao() {
 }
 
 if (ehDispositivoMovel()) {
-  // Tenta travar assim que possível
   window.addEventListener("load", tentarTravarOrientacaoPaisagem);
-  // E também na primeira interação do usuário (necessário em muitos navegadores
-  // para permitir fullscreen + orientation lock, que exigem gesto do usuário)
   document.addEventListener("pointerdown", solicitarFullscreenEOrientacao, { once: true });
 }
 </script>
@@ -509,9 +530,19 @@ function desenharNuvensTexto() {
 
 function ajustarAlturaCanvasWrap() {
   const wrap = document.getElementById("canvasWrap");
-  const alturaDisponivel = window.innerHeight;
-  const alturaDesejada = Math.min(alturaDisponivel * 0.62, 600);
-  wrap.style.height = Math.max(320, alturaDesejada) + "px";
+  const alturaJanela = window.innerHeight;
+  const larguraJanela = window.innerWidth;
+  const emPaisagemMobile = larguraJanela > alturaJanela && alturaJanela <= 500;
+
+  if (emPaisagemMobile) {
+    // Em paisagem mobile, aproveitamos quase toda a altura da tela,
+    // pois header/footer/dica já são compactados ou ocultados via CSS.
+    const espacoReservado = alturaJanela <= 420 ? 40 : 70;
+    wrap.style.height = Math.max(180, alturaJanela - espacoReservado) + "px";
+  } else {
+    const alturaDesejada = Math.min(alturaJanela * 0.62, 600);
+    wrap.style.height = Math.max(320, alturaDesejada) + "px";
+  }
 }
 
 function resize() {
