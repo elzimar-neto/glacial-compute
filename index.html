@@ -2,6 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>GLACIAL COMPUTE: RUM MAAMUTE</title>
 <style>
   * { box-sizing: border-box; }
@@ -10,6 +11,8 @@
     background: linear-gradient(to bottom, #bfe3f0 0%, #eaf6ff 60%, #ffffff 100%);
     display:flex; flex-direction:column; align-items:center;
     font-family: 'Trebuchet MS', sans-serif;
+    overscroll-behavior: none;
+    touch-action: manipulation;
   }
   header { width:100%; background:#134611; color:white; text-align:center; padding:14px 0 10px; box-shadow:0 3px 6px rgba(0,0,0,.3); }
   header h1 { margin:0; font-size:24px; letter-spacing:1px; }
@@ -18,11 +21,14 @@
 
   #colunaJogo { width:95vw; max-width:1400px; display:flex; flex-direction:column; align-items:center; margin-top:8px; }
   #hud { display:flex; justify-content:space-between; width:100%; font-size:20px; color:#134611; font-weight:bold; }
-  #canvasWrap { position:relative; width:100%; height:72vh; margin-top:6px; }
+  #canvasWrap { position:relative; width:100%; margin-top:6px; }
   canvas {
     background: transparent; border:5px solid #134611; border-radius:16px;
     width:100%; height:100%; display:block; box-shadow:0 6px 15px rgba(0,0,0,.25);
     transition: transform 0.05s;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
   }
   canvas.shake { animation: shakeAnim 0.5s; }
   @keyframes shakeAnim {
@@ -48,10 +54,14 @@
     position:absolute; top:0; left:0; width:100%; height:100%;
     background:rgba(19,70,17,0.55); display:flex; align-items:center; justify-content:center;
     border-radius:12px; z-index:5; cursor:pointer;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    pointer-events: auto;
   }
   #telaInicio p {
     color:white; font-size:22px; font-weight:bold; text-align:center;
     text-shadow:0 2px 4px rgba(0,0,0,.4); padding:0 20px;
+    pointer-events: none;
   }
 
   #rankingOverlay {
@@ -150,9 +160,47 @@
     0% { transform: translateY(0) rotate(0deg); opacity:1; }
     100% { transform: translateY(110vh) rotate(720deg); opacity:0.9; }
   }
+
+  /* ---------- Aviso obrigatório de rotação em mobile ---------- */
+  #avisoGirar {
+    display:none;
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    background:#134611; z-index:9999;
+    flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:20px; color:white;
+  }
+  #avisoGirar .icone {
+    font-size:70px; margin-bottom:20px;
+    animation: girarIcone 1.6s ease-in-out infinite;
+  }
+  @keyframes girarIcone {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+    100% { transform: rotate(0deg); }
+  }
+  #avisoGirar h2 { margin:0 0 10px; font-size:22px; color:#8bc34a; }
+  #avisoGirar p { margin:0; font-size:16px; max-width:320px; }
+
+  /* Em telas de celular (largura pequena) E em modo retrato,
+     escondemos o jogo e mostramos o aviso para girar. */
+  @media (max-width: 900px) and (orientation: portrait) {
+    #avisoGirar { display:flex; }
+    header, #colunaJogo, footer, #bannerRecorde,
+    #feedback, #quiz, #rankingBox, #rankingCompletoModal {
+      display:none !important;
+    }
+  }
 </style>
 </head>
 <body>
+
+<!-- Tela obrigatória exibida em celulares quando estão em modo retrato -->
+<div id="avisoGirar">
+  <div class="icone">📱</div>
+  <h2>Gire o celular</h2>
+  <p>Para jogar GLACIAL COMPUTE: RUM MAAMUTE, por favor deixe seu celular na posição horizontal (paisagem).</p>
+</div>
+
 <header>
   <h1><span class="glacial">GLACIAL COMPUTE</span>: <span class="rum">RUM MAAMUTE</span></h1>
 </header>
@@ -261,6 +309,46 @@ async function testarConexaoFirebase() {
 </script>
 
 <script>
+// ---------- Bloqueio/orientação para paisagem em dispositivos móveis ----------
+function ehDispositivoMovel() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 900;
+}
+
+async function tentarTravarOrientacaoPaisagem() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock("landscape");
+    }
+  } catch (erro) {
+    // Muitos navegadores só permitem o lock em modo fullscreen,
+    // ou não suportam a API — nesses casos, o aviso visual (#avisoGirar)
+    // já cobre o pedido para o usuário girar manualmente.
+    console.warn("Não foi possível travar a orientação automaticamente:", erro.message);
+  }
+}
+
+function solicitarFullscreenEOrientacao() {
+  const elem = document.documentElement;
+  const pedirFullscreen = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.mozRequestFullScreen || elem.msRequestFullscreen;
+  if (pedirFullscreen) {
+    pedirFullscreen.call(elem).then(tentarTravarOrientacaoPaisagem).catch(()=>{
+      tentarTravarOrientacaoPaisagem();
+    });
+  } else {
+    tentarTravarOrientacaoPaisagem();
+  }
+}
+
+if (ehDispositivoMovel()) {
+  // Tenta travar assim que possível
+  window.addEventListener("load", tentarTravarOrientacaoPaisagem);
+  // E também na primeira interação do usuário (necessário em muitos navegadores
+  // para permitir fullscreen + orientation lock, que exigem gesto do usuário)
+  document.addEventListener("pointerdown", solicitarFullscreenEOrientacao, { once: true });
+}
+</script>
+
+<script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
@@ -282,8 +370,8 @@ let gravidade = 0.55;
 let forcaPulo = -14;
 let obstaculos = [];
 let coracoes = [];
-let velocidade = 5;
-const velocidadeMax = 10;
+let velocidade = 4.5;
+const velocidadeMax = 8;
 let pontos = 0;
 let vidas = 3;
 const vidasMax = 3;
@@ -419,14 +507,31 @@ function desenharNuvensTexto() {
   ctx.restore();
 }
 
+function ajustarAlturaCanvasWrap() {
+  const wrap = document.getElementById("canvasWrap");
+  const alturaDisponivel = window.innerHeight;
+  const alturaDesejada = Math.min(alturaDisponivel * 0.62, 600);
+  wrap.style.height = Math.max(320, alturaDesejada) + "px";
+}
+
 function resize() {
+  ajustarAlturaCanvasWrap();
   const rect = canvas.parentElement.getBoundingClientRect();
   canvas.width = rect.width;
   canvas.height = rect.height;
   chao = canvas.height - 60;
   mamute.y = chao - mamute.h;
 }
-window.addEventListener("resize", resize);
+
+let ultimaLargura = window.innerWidth;
+window.addEventListener("resize", () => {
+  if (window.innerWidth !== ultimaLargura) {
+    ultimaLargura = window.innerWidth;
+    resize();
+  }
+});
+window.addEventListener("orientationchange", resize);
+
 window.addEventListener("load", () => {
   resize();
   inicializarCenario();
@@ -711,24 +816,50 @@ function pular() {
     mamute.teveColisaoNoPulo = false;
   }
 }
-document.addEventListener("keydown", e => { if (e.code === "Space") pular(); });
-canvas.addEventListener("click", pular);
-canvas.addEventListener("touchstart", e => { e.preventDefault(); pular(); });
+
+document.addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); pular(); } });
+
+// Usamos Pointer Events: funcionam de forma unificada para mouse,
+// touch e pen, evitando inconsistências entre touchstart/click
+// em diferentes navegadores mobile (Chrome Android, Safari iOS, WebViews).
+function aoApertar(e) {
+  if (e.cancelable) e.preventDefault();
+  pular();
+}
+
+[canvas, telaInicioEl, document.getElementById("colunaJogo")].forEach(el => {
+  el.addEventListener("pointerdown", aoApertar, { passive: false });
+});
+
+// Fallback extra: caso algum navegador antigo não suporte Pointer Events,
+// garantimos touchstart/click também funcionando.
+if (!window.PointerEvent) {
+  let ultimoToqueEm = 0;
+  function aoTocarFallback(e) {
+    if (e.cancelable) e.preventDefault();
+    ultimoToqueEm = Date.now();
+    pular();
+  }
+  function aoClicarFallback() {
+    if (Date.now() - ultimoToqueEm < 500) return;
+    pular();
+  }
+  [canvas, telaInicioEl].forEach(el => {
+    el.addEventListener("touchstart", aoTocarFallback, { passive: false });
+    el.addEventListener("click", aoClicarFallback);
+  });
+}
 
 function nivelDificuldade() {
-  if (pontos < 100) return 0;
-  if (pontos < 250) return 1;
-  if (pontos < 450) return 2;
-  if (pontos < 700) return 3;
+  if (pontos < 200) return 0;
+  if (pontos < 450) return 1;
+  if (pontos < 750) return 2;
+  if (pontos < 1100) return 3;
   return 4;
 }
 
-// ---------- Geração procedural de obstáculos (com espaçamento seguro) ----------
-// A distância mínima entre grupos de obstáculos é calculada a partir do
-// tempo de voo do salto do mamute, garantindo que sempre seja possível
-// saltar por cima de cada grupo antes que o próximo apareça.
-
-let framesParaProximoObstaculo = 90;
+// ---------- Geração procedural de obstáculos (fácil, com bastante espaço) ----------
+let framesParaProximoObstaculo = 130;
 
 function tipoAleatorio() {
   const tipos = ["iceberg","espinho","pedra"];
@@ -736,19 +867,18 @@ function tipoAleatorio() {
 }
 
 function novaAlturaObstaculo(nivel) {
-  const alturaBase = 28 + Math.random()*22;
-  const alturaExtra = nivel * (4 + Math.random()*4);
-  return Math.min(75, alturaBase + alturaExtra);
+  const alturaBase = 25 + Math.random()*18;
+  const alturaExtra = nivel * (3 + Math.random()*3);
+  return Math.min(60, alturaBase + alturaExtra);
 }
 
-// Retorna a largura total ocupada pelo grupo gerado (do início ao fim)
 function criarObstaculo() {
   const nivel = nivelDificuldade();
-  const largura = 40 + nivel * 2 + Math.random()*8;
+  const largura = 40 + nivel * 2;
 
-  const padroes = ["unico", "unico", "unico", "duplo"];
-  if (nivel >= 2) padroes.push("duplo", "escalonado");
-  if (nivel >= 3) padroes.push("trio");
+  const padroes = ["unico", "unico", "unico", "unico", "unico"];
+  if (nivel >= 2) padroes.push("duplo");
+  if (nivel >= 4) padroes.push("duplo");
   const padrao = padroes[Math.floor(Math.random()*padroes.length)];
 
   let inicioX = canvas.width;
@@ -762,32 +892,11 @@ function criarObstaculo() {
   } else if (padrao === "duplo") {
     const h1 = novaAlturaObstaculo(nivel);
     obstaculos.push({ x: inicioX, y: chao-h1, w: largura, h: h1, tipo: tipoAleatorio() });
-    const espacoInterno = 110 + Math.random()*40;
+    const espacoInterno = 170 + Math.random()*50;
     const x2 = inicioX + largura + espacoInterno;
     const h2 = novaAlturaObstaculo(nivel);
     obstaculos.push({ x: x2, y: chao-h2, w: largura, h: h2, tipo: tipoAleatorio() });
     fimX = x2 + largura;
-
-  } else if (padrao === "escalonado") {
-    const qtd = 2;
-    let alturaInicial = 22 + Math.random()*15;
-    const crescente = Math.random() < 0.5;
-    let xAtual = inicioX;
-    for (let i=0;i<qtd;i++) {
-      const h = Math.min(70, alturaInicial + (crescente ? i : (qtd-1-i)) * (8 + nivel*2));
-      obstaculos.push({ x: xAtual, y: chao-h, w: largura*0.9, h, tipo: tipoAleatorio() });
-      xAtual += largura*0.9 + 100 + Math.random()*30;
-    }
-    fimX = xAtual;
-
-  } else if (padrao === "trio") {
-    let xAtual = inicioX;
-    for (let i=0;i<3;i++) {
-      const h = novaAlturaObstaculo(nivel) * (0.6 + Math.random()*0.3);
-      obstaculos.push({ x: xAtual, y: chao-h, w: largura*0.8, h, tipo: tipoAleatorio() });
-      xAtual += largura*0.8 + 90 + Math.random()*25;
-    }
-    fimX = xAtual;
   }
 
   return fimX - inicioX;
@@ -888,7 +997,7 @@ function mostrarQuiz() {
     quizEl.style.display = "none";
 
     if (resultado === true) {
-      velocidade = Math.min(velocidadeMax, velocidade + 0.4);
+      velocidade = Math.min(velocidadeMax, velocidade + 0.2);
       pontos += 15;
       mostrarFeedback(true);
       tocarSom("acerto");
@@ -1049,7 +1158,6 @@ async function salvarRanking() {
   }
 }
 
-// ---------- Fim de jogo: recorde só é checado e exibido aqui ----------
 function finalizarJogo() {
   gameOver = true;
   jaSalvouNestaPartida = false;
@@ -1101,10 +1209,9 @@ function loop() {
   framesParaProximoObstaculo--;
   if (framesParaProximoObstaculo <= 0) {
     const larguraGrupo = criarObstaculo();
-    // distância mínima de segurança baseada no tempo de voo do salto
-    const distanciaSeguranca = 230 + Math.random()*40;
+    const distanciaSeguranca = 340 + Math.random()*80;
     framesParaProximoObstaculo = Math.max(
-      40,
+      70,
       Math.round((larguraGrupo + distanciaSeguranca) / velocidade)
     );
   }
