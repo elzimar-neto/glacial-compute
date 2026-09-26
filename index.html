@@ -161,7 +161,6 @@
     100% { transform: translateY(110vh) rotate(720deg); opacity:0.9; }
   }
 
-  /* ---------- Aviso obrigatório de rotação em mobile ---------- */
   #avisoGirar {
     display:none;
     position:fixed; top:0; left:0; width:100%; height:100%;
@@ -181,8 +180,6 @@
   #avisoGirar h2 { margin:0 0 10px; font-size:22px; color:#8bc34a; }
   #avisoGirar p { margin:0; font-size:16px; max-width:320px; }
 
-  /* Em telas de celular (largura pequena) E em modo retrato,
-     escondemos o jogo e mostramos o aviso para girar. */
   @media (max-width: 900px) and (orientation: portrait) {
     #avisoGirar { display:flex; }
     header, #colunaJogo, footer, #bannerRecorde,
@@ -191,28 +188,22 @@
     }
   }
 
-  /* ---------- Ajuste fino para celulares em modo paisagem ---------- */
   @media (max-height: 500px) and (orientation: landscape) {
     header { padding:4px 0 3px; }
     header h1 { font-size:15px; }
-
-    footer { display:none; } /* footer não é essencial durante o jogo em paisagem */
-
+    footer { display:none; }
     #colunaJogo { margin-top:2px; }
     #hud { font-size:13px; }
     #dica { font-size:11px; margin-top:2px; }
-
     #rankingOverlay { width:110px; padding:4px; top:6px; right:6px; }
     #rankingOverlay h3 { font-size:11px; margin-bottom:3px; }
     #rankingOverlay .item { font-size:10px; }
-
     #telaInicio p { font-size:16px; }
-
     canvas { border-width:3px; }
   }
 
   @media (max-height: 420px) and (orientation: landscape) {
-    header { display:none; } /* em telas muito baixas, escondemos até o cabeçalho */
+    header { display:none; }
     #dica { display:none; }
     #rankingOverlay { width:90px; }
     #rankingOverlay h3 { display:none; }
@@ -221,7 +212,6 @@
 </head>
 <body>
 
-<!-- Tela obrigatória exibida em celulares quando estão em modo retrato -->
 <div id="avisoGirar">
   <div class="icone">📱</div>
   <h2>Gire o celular</h2>
@@ -251,7 +241,7 @@
       <div id="top3">Carregando...</div>
     </div>
   </div>
-  <div id="dica">Clique, toque na tela ou aperte ESPAÇO para pular!</div>
+  <div id="dica">Cuidado com buracos — cair neles é fatal! Pule sobre obstáculos e o tigre-dente-de-sabre.</div>
 </div>
 
 <div id="feedback"></div>
@@ -336,7 +326,6 @@ async function testarConexaoFirebase() {
 </script>
 
 <script>
-// ---------- Bloqueio/orientação para paisagem em dispositivos móveis ----------
 function ehDispositivoMovel() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 900;
 }
@@ -403,7 +392,6 @@ let pulosBemSucedidos = 0;
 let jaSalvouNestaPartida = false;
 let jogoIniciado = false;
 
-// ---------- Recorde local (só usado/exibido no fim de jogo) ----------
 const CHAVE_RECORDE = "recordeMaamute";
 let recordeAtual = parseInt(localStorage.getItem(CHAVE_RECORDE) || "0", 10);
 
@@ -509,6 +497,13 @@ function tocarSom(tipo) {
       gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
       osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (tipo === "buraco") {
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.6);
+      gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.65);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.65);
     }
   } catch(e) {}
 }
@@ -535,8 +530,6 @@ function ajustarAlturaCanvasWrap() {
   const emPaisagemMobile = larguraJanela > alturaJanela && alturaJanela <= 500;
 
   if (emPaisagemMobile) {
-    // Em paisagem mobile, aproveitamos quase toda a altura da tela,
-    // pois header/footer/dica já são compactados ou ocultados via CSS.
     const espacoReservado = alturaJanela <= 420 ? 40 : 70;
     wrap.style.height = Math.max(180, alturaJanela - espacoReservado) + "px";
   } else {
@@ -801,14 +794,17 @@ function drawStar(cx, cy, spikes, outer, inner) {
   ctx.fill();
 }
 
+// ---------- Desenho dos obstáculos (inclui buraco fatal e tigre-dente-de-sabre) ----------
 function desenharObstaculo(o) {
   ctx.save();
   ctx.translate(o.x, o.y);
+
   if (o.tipo === "iceberg") {
     ctx.fillStyle = "#a8d8ef"; ctx.strokeStyle = "#7fb8d6"; ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, o.h); ctx.lineTo(o.w*0.3, 0); ctx.lineTo(o.w*0.6, o.h*0.5); ctx.lineTo(o.w, o.h);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+
   } else if (o.tipo === "espinho") {
     ctx.fillStyle = "#e3f2fa"; ctx.strokeStyle = "#8fc7de";
     for (let i=0;i<3;i++) {
@@ -816,12 +812,83 @@ function desenharObstaculo(o) {
       ctx.moveTo(i*(o.w/3), o.h); ctx.lineTo(i*(o.w/3)+o.w/6, 0); ctx.lineTo(i*(o.w/3)+o.w/3, o.h);
       ctx.closePath(); ctx.fill(); ctx.stroke();
     }
-  } else {
+
+  } else if (o.tipo === "pedra") {
     ctx.fillStyle = "#90a4ae";
     ctx.beginPath(); ctx.ellipse(o.w/2, o.h/2, o.w/2, o.h/2, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = "white";
     ctx.beginPath(); ctx.ellipse(o.w/2, o.h/3, o.w/2.3, o.h/4, 0, 0, Math.PI*2); ctx.fill();
+
+  } else if (o.tipo === "buraco") {
+    const grad = ctx.createRadialGradient(o.w/2, 6, 4, o.w/2, 6, o.w/2);
+    grad.addColorStop(0, "#050505");
+    grad.addColorStop(0.6, "#1c1c1c");
+    grad.addColorStop(1, "#3a3a3a");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(o.w/2, 8, o.w/2, 12, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "#c9e6f2";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(o.w/2, 8, o.w/2, 12, 0, 0, Math.PI*2);
+    ctx.stroke();
+
+  } else if (o.tipo === "tigre") {
+    const w = o.w, h = o.h;
+    // corpo (lado direito)
+    ctx.fillStyle = "#e2a640";
+    ctx.beginPath();
+    ctx.ellipse(w*0.58, h*0.62, w*0.42, h*0.32, 0, 0, Math.PI*2);
+    ctx.fill();
+    // cabeça (lado esquerdo — virada para a esquerda)
+    ctx.beginPath();
+    ctx.ellipse(w*0.2, h*0.4, w*0.26, h*0.26, 0, 0, Math.PI*2);
+    ctx.fill();
+    // orelhas
+    ctx.beginPath();
+    ctx.arc(w*0.3, h*0.2, 5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(w*0.1, h*0.2, 5, 0, Math.PI*2); ctx.fill();
+    // barriga clara
+    ctx.fillStyle = "#fdf3df";
+    ctx.beginPath();
+    ctx.ellipse(w*0.58, h*0.78, w*0.3, h*0.14, 0, 0, Math.PI*2);
+    ctx.fill();
+    // listras
+    ctx.strokeStyle = "#5b3a1a";
+    ctx.lineWidth = 3;
+    for (let i=0;i<4;i++) {
+      ctx.beginPath();
+      ctx.moveTo(w*0.9-i*w*0.14, h*0.35);
+      ctx.lineTo(w*0.85-i*w*0.14, h*0.75);
+      ctx.stroke();
+    }
+    // presas (dente-de-sabre)
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.moveTo(w*0.28, h*0.48);
+    ctx.lineTo(w*0.25, h*0.82);
+    ctx.lineTo(w*0.21, h*0.48);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(w*0.18, h*0.48);
+    ctx.lineTo(w*0.15, h*0.82);
+    ctx.lineTo(w*0.11, h*0.48);
+    ctx.closePath();
+    ctx.fill();
+    // olho
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.arc(w*0.14, h*0.34, 3, 0, Math.PI*2);
+    ctx.fill();
+    // pernas
+    ctx.fillStyle = "#c98a30";
+    ctx.fillRect(w*0.8, h*0.85, 8, h*0.15);
+    ctx.fillRect(w*0.45, h*0.85, 8, h*0.15);
   }
+
   ctx.restore();
 }
 
@@ -850,9 +917,6 @@ function pular() {
 
 document.addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); pular(); } });
 
-// Usamos Pointer Events: funcionam de forma unificada para mouse,
-// touch e pen, evitando inconsistências entre touchstart/click
-// em diferentes navegadores mobile (Chrome Android, Safari iOS, WebViews).
 function aoApertar(e) {
   if (e.cancelable) e.preventDefault();
   pular();
@@ -862,8 +926,6 @@ function aoApertar(e) {
   el.addEventListener("pointerdown", aoApertar, { passive: false });
 });
 
-// Fallback extra: caso algum navegador antigo não suporte Pointer Events,
-// garantimos touchstart/click também funcionando.
 if (!window.PointerEvent) {
   let ultimoToqueEm = 0;
   function aoTocarFallback(e) {
@@ -889,12 +951,14 @@ function nivelDificuldade() {
   return 4;
 }
 
-// ---------- Geração procedural de obstáculos (fácil, com bastante espaço) ----------
 let framesParaProximoObstaculo = 130;
 
-function tipoAleatorio() {
-  const tipos = ["iceberg","espinho","pedra"];
-  return tipos[Math.floor(Math.random()*tipos.length)];
+function tipoAleatorio(nivel) {
+  const pool = ["iceberg","espinho","pedra","iceberg","espinho","pedra"];
+  if (nivel >= 1) pool.push("tigre");
+  if (nivel >= 1) pool.push("buraco");
+  if (nivel >= 3) pool.push("tigre", "buraco");
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 
 function novaAlturaObstaculo(nivel) {
@@ -903,9 +967,30 @@ function novaAlturaObstaculo(nivel) {
   return Math.min(60, alturaBase + alturaExtra);
 }
 
+function criarUmObstaculo(x, nivel) {
+  const tipo = tipoAleatorio(nivel);
+
+  if (tipo === "buraco") {
+    const largura = 70 + Math.random()*50 + nivel*4;
+    obstaculos.push({ x, y: chao, w: largura, h: 24, tipo });
+    return largura;
+  }
+
+  if (tipo === "tigre") {
+    const altura = 62 + Math.random()*14 + nivel*2;
+    const largura = 62;
+    obstaculos.push({ x, y: chao-altura, w: largura, h: altura, tipo });
+    return largura;
+  }
+
+  const largura = 40 + nivel * 2;
+  const altura = novaAlturaObstaculo(nivel);
+  obstaculos.push({ x, y: chao-altura, w: largura, h: altura, tipo });
+  return largura;
+}
+
 function criarObstaculo() {
   const nivel = nivelDificuldade();
-  const largura = 40 + nivel * 2;
 
   const padroes = ["unico", "unico", "unico", "unico", "unico"];
   if (nivel >= 2) padroes.push("duplo");
@@ -916,21 +1001,38 @@ function criarObstaculo() {
   let fimX = canvas.width;
 
   if (padrao === "unico") {
-    const h = novaAlturaObstaculo(nivel);
-    obstaculos.push({ x: inicioX, y: chao-h, w: largura, h, tipo: tipoAleatorio() });
+    const largura = criarUmObstaculo(inicioX, nivel);
     fimX = inicioX + largura;
 
-  } else if (padrao === "duplo") {
-    const h1 = novaAlturaObstaculo(nivel);
-    obstaculos.push({ x: inicioX, y: chao-h1, w: largura, h: h1, tipo: tipoAleatorio() });
-    const espacoInterno = 170 + Math.random()*50;
-    const x2 = inicioX + largura + espacoInterno;
-    const h2 = novaAlturaObstaculo(nivel);
-    obstaculos.push({ x: x2, y: chao-h2, w: largura, h: h2, tipo: tipoAleatorio() });
-    fimX = x2 + largura;
+  } else {
+    const largura1 = criarUmObstaculo(inicioX, nivel);
+    const espacoInterno = 170 + Math.random()*60;
+    const x2 = inicioX + largura1 + espacoInterno;
+    const largura2 = criarUmObstaculo(x2, nivel);
+    fimX = x2 + largura2;
   }
 
   return fimX - inicioX;
+}
+
+function agendarProximoObstaculo(larguraGrupo) {
+  const sorte = Math.random();
+  let distanciaSeguranca;
+
+  if (sorte < 0.18) {
+    distanciaSeguranca = 550 + Math.random() * 320;
+  } else if (sorte < 0.55) {
+    distanciaSeguranca = 260 + Math.random() * 140;
+  } else if (sorte < 0.85) {
+    distanciaSeguranca = 150 + Math.random() * 90;
+  } else {
+    distanciaSeguranca = 110 + Math.random() * 60;
+  }
+
+  framesParaProximoObstaculo = Math.max(
+    55,
+    Math.round((larguraGrupo + distanciaSeguranca) / velocidade)
+  );
 }
 
 function criarCoracao() {
@@ -1093,10 +1195,19 @@ function colide(a, b) {
   const by = b.y + b.h*0.3;
   return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
 }
+
 function colideCoracao(a, c) {
   const ax = a.x + a.w*0.35, aw = a.w*0.3, ah = a.h*0.35;
   const ay = a.y + a.h*0.55;
   return ax < c.x+c.w && ax+aw > c.x && ay < c.y+c.h && ay+ah > c.y;
+}
+
+function colideBuraco(a, buraco) {
+  const margemSolo = 12;
+  const pesEsquerda = a.x + a.w*0.35;
+  const pesDireita = pesEsquerda + a.w*0.3;
+  const noSolo = a.y >= (chao - a.h - margemSolo);
+  return noSolo && pesDireita > buraco.x && pesEsquerda < buraco.x + buraco.w;
 }
 
 function efeitoChoque() {
@@ -1240,11 +1351,7 @@ function loop() {
   framesParaProximoObstaculo--;
   if (framesParaProximoObstaculo <= 0) {
     const larguraGrupo = criarObstaculo();
-    const distanciaSeguranca = 340 + Math.random()*80;
-    framesParaProximoObstaculo = Math.max(
-      70,
-      Math.round((larguraGrupo + distanciaSeguranca) / velocidade)
-    );
+    agendarProximoObstaculo(larguraGrupo);
   }
 
   if (frame % 500 === 0) criarCoracao();
@@ -1255,13 +1362,24 @@ function loop() {
   coracoes = coracoes.filter(c => c.x + c.w > 0);
 
   obstaculos.forEach(o => {
-    if (!o.atingido && colide(mamute, o)) {
+    if (o.atingido) return;
+
+    if (o.tipo === "buraco") {
+      if (colideBuraco(mamute, o)) {
+        o.atingido = true;
+        efeitoChoque();
+        tocarSom("buraco");
+        vidas = 0;
+        atualizarVidas();
+        finalizarJogo();
+      }
+    } else if (colide(mamute, o)) {
       o.atingido = true;
       mamute.teveColisaoNoPulo = true;
       vidas--;
       atualizarVidas();
       efeitoChoque();
-      if (vidas <= 0) { finalizarJogo(); return; }
+      if (vidas <= 0) { finalizarJogo(); }
     }
   });
   if (gameOver) return;
